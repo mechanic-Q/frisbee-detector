@@ -1,0 +1,6 @@
+path: /mnt/e/frisbee-detector/data/datasets/frisbee_ultimateml
+train: images/train
+val: images/valid
+test: images/test
+nc: 1
+names: ['frisbee']
