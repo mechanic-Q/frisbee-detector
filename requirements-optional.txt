@@ -1,0 +1,2 @@
+# Optional: SAHI sliced inference for small object detection (Task 6)
+sahi>=0.11.0

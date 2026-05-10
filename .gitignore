@@ -1,0 +1,41 @@
+# YOLO runs output
+runs/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Data (large files, not tracked in git)
+data/raw/
+data/frames/
+data/datasets/
+
+# Model weights (>10MB, tracked via Git LFS or stored externally)
+*.pt
+*.pth
+*.onnx
+*.engine
+*.torchscript
+
+# Notebooks
+*.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+venv/
+.venv/

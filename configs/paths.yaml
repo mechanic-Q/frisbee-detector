@@ -1,0 +1,14 @@
+# External data source paths (use env var RESEARCH_ROOT to point to research repo root)
+# Falls back to default paths when env var is not set
+# Windows: set RESEARCH_ROOT=E:/firsbee
+# Linux/WSL: export RESEARCH_ROOT=/mnt/e/firsbee
+ultimateml_dir: "${RESEARCH_ROOT:-/mnt/e/firsbee}/03_datasets/UltimateML"
+ultimate_analytics_dir: "${RESEARCH_ROOT:-/mnt/e/firsbee}/03_datasets/ultimate_analytics"
+frisbee_dataset_dir: "${RESEARCH_ROOT:-/mnt/e/firsbee}/03_datasets/frisbee_dataset"
+frisbee_tracking_dir: "${RESEARCH_ROOT:-/mnt/e/firsbee}/03_datasets/frisbee-tracking"
+frisbee_vision_dir: "${RESEARCH_ROOT:-/mnt/e/firsbee}/03_datasets/frisbee-vision-project"
+
+# Project data paths (use env var PROJECT_ROOT, defaults to current project dir)
+raw_videos_dir: "${PROJECT_ROOT:-/mnt/e/frisbee-detector}/data/raw"
+frames_dir: "${PROJECT_ROOT:-/mnt/e/frisbee-detector}/data/frames"
+datasets_dir: "${PROJECT_ROOT:-/mnt/e/frisbee-detector}/data/datasets"
