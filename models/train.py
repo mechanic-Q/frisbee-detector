@@ -5,7 +5,9 @@ import os
 
 
 def train_frisbee_detector(data_yaml, model_size="s", epochs=100, imgsz=1280,
-                           batch=8, resume_from=None, device=0, workers=4):
+                           batch=8, resume_from=None, device=0, workers=4,
+                           box=7.5, close_mosaic=10, patience=20,
+                           run_name=None):
     if resume_from and os.path.exists(resume_from):
         print(f"Loading model from: {resume_from}")
         model = YOLO(resume_from)
@@ -13,12 +15,13 @@ def train_frisbee_detector(data_yaml, model_size="s", epochs=100, imgsz=1280,
         print(f"Loading model: yolov8{model_size}.pt")
         model = YOLO(f"yolov8{model_size}.pt")
 
+    name = run_name if run_name else f"frisbee_det_{model_size}"
     results = model.train(
         data=data_yaml,
         epochs=epochs,
         imgsz=imgsz,
         batch=batch,
-        name=f"frisbee_det_{model_size}",
+        name=name,
         project="runs/detect",
         pretrained=True,
         optimizer="AdamW",
@@ -40,7 +43,9 @@ def train_frisbee_detector(data_yaml, model_size="s", epochs=100, imgsz=1280,
         hsv_h=0.015,
         hsv_s=0.7,
         hsv_v=0.4,
-        patience=20,
+        patience=patience,
+        close_mosaic=close_mosaic,
+        box=box,
         save=True,
         save_period=10,
         device=device,
@@ -75,6 +80,10 @@ if __name__ == "__main__":
     parser.add_argument("--resume", default=None, help="Checkpoint to resume/fine-tune from")
     parser.add_argument("--workers", type=int, default=4, help="DataLoader workers")
     parser.add_argument("--device", default="0", help="CUDA device")
+    parser.add_argument("--box", type=float, default=7.5, help="Box loss weight (higher = better localization)")
+    parser.add_argument("--close-mosaic", type=int, default=10, help="Disable mosaic augmentation in last N epochs")
+    parser.add_argument("--patience", type=int, default=20, help="Early stopping patience")
+    parser.add_argument("--name", default=None, help="Training run name (default: frisbee_det_{model_size})")
     parser.add_argument("--validate-only", action="store_true")
     parser.add_argument("--model-path", default=None)
     args = parser.parse_args()
@@ -94,6 +103,10 @@ if __name__ == "__main__":
             resume_from=args.resume,
             workers=args.workers,
             device=int(args.device) if args.device.isdigit() else args.device,
+            box=args.box,
+            close_mosaic=args.close_mosaic,
+            patience=args.patience,
+            run_name=args.name,
         )
         print(f"\nRunning validation on best model...")
         validate_model(best_path, args.data, args.imgsz)
