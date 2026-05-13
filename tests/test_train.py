@@ -40,7 +40,7 @@ def test_freeze_none_not_passed():
         )
 
         call_kwargs = mock_model.train.call_args[1]
-        assert "freeze" not in call_kwargs or call_kwargs.get("freeze") is None
+        assert "freeze" not in call_kwargs
 
 
 def test_cls_passed_to_model_train():
