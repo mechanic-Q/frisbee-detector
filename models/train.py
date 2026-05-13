@@ -6,7 +6,7 @@ import os
 
 def train_frisbee_detector(data_yaml, model_size="s", epochs=100, imgsz=1280,
                            batch=8, resume_from=None, device=0, workers=4,
-                           box=7.5, close_mosaic=10, patience=20,
+                           box=7.5, cls=0.5, close_mosaic=10, patience=20,
                            run_name=None):
     if resume_from and os.path.exists(resume_from):
         print(f"Loading model from: {resume_from}")
@@ -46,6 +46,7 @@ def train_frisbee_detector(data_yaml, model_size="s", epochs=100, imgsz=1280,
         patience=patience,
         close_mosaic=close_mosaic,
         box=box,
+        cls=cls,
         save=True,
         save_period=10,
         device=device,
@@ -81,6 +82,7 @@ if __name__ == "__main__":
     parser.add_argument("--workers", type=int, default=4, help="DataLoader workers")
     parser.add_argument("--device", default="0", help="CUDA device")
     parser.add_argument("--box", type=float, default=7.5, help="Box loss weight (higher = better localization)")
+    parser.add_argument("--cls", type=float, default=0.5, help="Classification loss weight (higher = fewer false positives)")
     parser.add_argument("--close-mosaic", type=int, default=10, help="Disable mosaic augmentation in last N epochs")
     parser.add_argument("--patience", type=int, default=20, help="Early stopping patience")
     parser.add_argument("--name", default=None, help="Training run name (default: frisbee_det_{model_size})")
@@ -104,6 +106,7 @@ if __name__ == "__main__":
             workers=args.workers,
             device=int(args.device) if args.device.isdigit() else args.device,
             box=args.box,
+            cls=args.cls,
             close_mosaic=args.close_mosaic,
             patience=args.patience,
             run_name=args.name,
