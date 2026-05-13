@@ -7,7 +7,7 @@ import os
 def train_frisbee_detector(data_yaml, model_size="s", epochs=100, imgsz=1280,
                            batch=8, resume_from=None, device=0, workers=4,
                            box=7.5, cls=0.5, close_mosaic=10, patience=20,
-                           run_name=None):
+                           run_name=None, freeze=None):
     if resume_from and os.path.exists(resume_from):
         print(f"Loading model from: {resume_from}")
         model = YOLO(resume_from)
@@ -52,6 +52,7 @@ def train_frisbee_detector(data_yaml, model_size="s", epochs=100, imgsz=1280,
         device=device,
         workers=workers,
         exist_ok=True,
+        **({"freeze": freeze} if freeze is not None else {}),
     )
     best_path = Path(results.save_dir) / "weights" / "best.pt"
     print(f"\nBest model saved to: {best_path}")
@@ -85,6 +86,7 @@ if __name__ == "__main__":
     parser.add_argument("--cls", type=float, default=0.5, help="Classification loss weight (higher = fewer false positives)")
     parser.add_argument("--close-mosaic", type=int, default=10, help="Disable mosaic augmentation in last N epochs")
     parser.add_argument("--patience", type=int, default=20, help="Early stopping patience")
+    parser.add_argument("--freeze", type=int, default=None, help="Freeze first N layers for transfer learning")
     parser.add_argument("--name", default=None, help="Training run name (default: frisbee_det_{model_size})")
     parser.add_argument("--validate-only", action="store_true")
     parser.add_argument("--model-path", default=None)
@@ -110,6 +112,7 @@ if __name__ == "__main__":
             close_mosaic=args.close_mosaic,
             patience=args.patience,
             run_name=args.name,
+            freeze=args.freeze,
         )
         print(f"\nRunning validation on best model...")
         validate_model(best_path, args.data, args.imgsz)
