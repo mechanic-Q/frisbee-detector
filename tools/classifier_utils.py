@@ -43,3 +43,36 @@ def split_train_val(samples, val_ratio=0.2, seed=42):
     rng.shuffle(train)
     rng.shuffle(val)
     return train, val
+
+
+def create_model(num_classes=2, pretrained=True):
+    """Create a ResNet18 binary classifier."""
+    import torch.nn as nn
+    import torchvision.models as models
+
+    model = models.resnet18(weights="IMAGENET1K_V1" if pretrained else None)
+    in_features = model.fc.in_features
+    model.fc = nn.Linear(in_features, num_classes)
+    return model
+
+
+def get_transforms(is_train=True):
+    """Get image transforms for training or inference."""
+    import torchvision.transforms as T
+
+    if is_train:
+        return T.Compose([
+            T.ToPILImage(),
+            T.Resize((224, 224)),
+            T.RandomHorizontalFlip(p=0.5),
+            T.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+            T.ToTensor(),
+            T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
+    else:
+        return T.Compose([
+            T.ToPILImage(),
+            T.Resize((224, 224)),
+            T.ToTensor(),
+            T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])

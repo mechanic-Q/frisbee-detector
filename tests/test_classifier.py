@@ -72,3 +72,33 @@ def test_train_val_split():
         assert train_fp + val_fp == 2
         assert train_tp >= 1 and val_tp >= 1
         assert train_fp >= 1 and val_fp >= 1
+
+
+def test_create_model_output_shape():
+    """模型输出形状正确：batch_size=4, num_classes=2."""
+    from tools.classifier_utils import create_model
+    import torch
+
+    model = create_model(num_classes=2, pretrained=True)
+    model.eval()
+
+    dummy_input = torch.randn(4, 3, 224, 224)
+    with torch.no_grad():
+        output = model(dummy_input)
+
+    assert output.shape == (4, 2)
+
+
+def test_get_transforms_train_inference():
+    """训练transforms有数据增强，推理transforms没有."""
+    from tools.classifier_utils import get_transforms
+
+    train_transform = get_transforms(is_train=True)
+    eval_transform = get_transforms(is_train=False)
+
+    import torchvision.transforms as T
+    has_random = any(isinstance(t, T.RandomHorizontalFlip) for t in train_transform.transforms)
+    assert has_random, "train transform should have augmentation"
+
+    has_random_eval = any(isinstance(t, T.RandomHorizontalFlip) for t in eval_transform.transforms)
+    assert not has_random_eval, "eval transform should not have augmentation"
