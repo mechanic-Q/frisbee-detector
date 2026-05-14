@@ -149,3 +149,58 @@ def test_classify_directory_writes_csv(tmp_path):
         assert "confidence" in rows[0]
         for row in rows:
             assert row["label"] in ("0", "1")
+
+
+def test_training_can_overfit_small_batch():
+    """训练能在10张图上过拟合（loss接近0，acc接近1.0）."""
+    from tools.classifier_utils import create_model, get_transforms
+    import torch
+    import tempfile
+    import cv2
+    import csv
+
+    model = create_model(num_classes=2, pretrained=True)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        for i in range(5):
+            img = np.random.randint(0, 255, (100, 100, 3), dtype=np.uint8)
+            cv2.imwrite(str(tmp / f"tp_{i}.jpg"), img)
+        for i in range(5):
+            img = np.random.randint(0, 255, (100, 100, 3), dtype=np.uint8)
+            cv2.imwrite(str(tmp / f"fp_{i}.jpg"), img)
+
+        csv_path = tmp / "review.csv"
+        with open(csv_path, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["filename", "result", "frame", "conf"])
+            for i in range(5):
+                writer.writerow([f"tp_{i}.jpg", "TP", str(i), "0.5"])
+            for i in range(5):
+                writer.writerow([f"fp_{i}.jpg", "FP", str(i+5), "0.5"])
+
+        from tools.classifier_utils import load_labeled_dataset, split_train_val
+        samples = load_labeled_dataset(csv_path, tmp)
+        train_samples, val_samples = split_train_val(samples, val_ratio=0.2)
+
+        from tools.train_frisbee_classifier import train_one_epoch, validate
+        import torch.optim as optim
+        import torch.nn as nn
+
+        model = create_model(num_classes=2, pretrained=False)
+        device = "cpu"
+        model.to(device)
+
+        transform = get_transforms(is_train=True)
+        optimizer = optim.Adam(model.parameters(), lr=1e-3)
+        criterion = nn.CrossEntropyLoss()
+
+        for epoch in range(100):
+            train_loss, train_acc = train_one_epoch(
+                model, train_samples, transform, optimizer, criterion, device, batch_size=4
+            )
+            val_loss, val_acc = validate(
+                model, val_samples, get_transforms(is_train=False), criterion, device, batch_size=4
+            )
+
+        assert train_acc > 0.9, f"train acc {train_acc:.2f} should be > 0.9"
