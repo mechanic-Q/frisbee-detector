@@ -84,6 +84,8 @@ def classify_image(model, image_path, transform, device="cuda"):
     import cv2
 
     img = cv2.imread(str(image_path))
+    if img is None:
+        raise FileNotFoundError(f"Cannot read image: {image_path}")
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     tensor = transform(img).unsqueeze(0).to(device)
 
@@ -97,9 +99,6 @@ def classify_image(model, image_path, transform, device="cuda"):
 
 def classify_directory(model, img_dir, output_csv, transform, device="cuda"):
     """Classify all images in a directory, write results to CSV."""
-    import csv
-    from pathlib import Path
-
     img_dir = Path(img_dir)
     results = []
 

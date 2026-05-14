@@ -147,4 +147,5 @@ def test_classify_directory_writes_csv(tmp_path):
         assert "filename" in rows[0]
         assert "label" in rows[0]
         assert "confidence" in rows[0]
-        assert rows[0]["label"] in ("0", "1")
+        for row in rows:
+            assert row["label"] in ("0", "1")
