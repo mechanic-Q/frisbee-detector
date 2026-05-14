@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 import numpy as np
+import cv2
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -14,6 +15,7 @@ REVIEW_CSV = PROJECT_ROOT / "data" / "perbox_crops" / "review_results.csv"
 CROP_DIR = PROJECT_ROOT / "data" / "perbox_crops"
 
 
+@pytest.mark.integration
 def test_load_labeled_dataset():
     """Load labeled dataset, return (path, label) list, 0=FP, 1=TP."""
     from tools.classifier_utils import load_labeled_dataset
@@ -41,7 +43,6 @@ def test_train_val_split():
         tmp = Path(tmpdir)
         for i in range(5):
             img = np.zeros((100, 100, 3), dtype=np.uint8)
-            import cv2
             cv2.imwrite(str(tmp / f"crop_{i}.jpg"), img)
 
         csv_path = tmp / "review.csv"

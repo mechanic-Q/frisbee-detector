@@ -1,5 +1,6 @@
 """Shared utilities for frisbee classifier."""
 import csv
+import warnings
 from pathlib import Path
 
 
@@ -17,19 +18,21 @@ def load_labeled_dataset(csv_path, img_dir):
             img_path = img_dir / row["filename"]
             if img_path.is_file():
                 samples.append((img_path, label))
+            else:
+                warnings.warn(f"Missing image: {img_path}")
     return samples
 
 
 def split_train_val(samples, val_ratio=0.2, seed=42):
     """Stratified split into train and validation sets."""
     import random
-    random.seed(seed)
+    rng = random.Random(seed)
 
     tp_samples = [(p, l) for p, l in samples if l == 1]
     fp_samples = [(p, l) for p, l in samples if l == 0]
 
-    random.shuffle(tp_samples)
-    random.shuffle(fp_samples)
+    rng.shuffle(tp_samples)
+    rng.shuffle(fp_samples)
 
     tp_split = int(len(tp_samples) * (1 - val_ratio))
     fp_split = int(len(fp_samples) * (1 - val_ratio))
@@ -37,6 +40,6 @@ def split_train_val(samples, val_ratio=0.2, seed=42):
     train = tp_samples[:tp_split] + fp_samples[:fp_split]
     val = tp_samples[tp_split:] + fp_samples[fp_split:]
 
-    random.shuffle(train)
-    random.shuffle(val)
+    rng.shuffle(train)
+    rng.shuffle(val)
     return train, val
