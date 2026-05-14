@@ -102,3 +102,49 @@ def test_get_transforms_train_inference():
 
     has_random_eval = any(isinstance(t, T.RandomHorizontalFlip) for t in eval_transform.transforms)
     assert not has_random_eval, "eval transform should not have augmentation"
+
+
+def test_classify_image_returns_label_and_confidence():
+    """单图分类返回 (label, confidence) 元组."""
+    from tools.classifier_utils import create_model, get_transforms, classify_image
+    import torch
+
+    model = create_model(num_classes=2, pretrained=True)
+    model.eval()
+    transform = get_transforms(is_train=False)
+
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix=".jpg") as f:
+        dummy = np.zeros((200, 200, 3), dtype=np.uint8)
+        cv2.imwrite(f.name, dummy)
+        label, conf = classify_image(model, f.name, transform, device="cpu")
+
+    assert label in (0, 1)
+    assert 0.0 <= conf <= 1.0
+    assert isinstance(conf, float)
+
+
+def test_classify_directory_writes_csv(tmp_path):
+    """批量分类目录输出CSV，包含所有裁剪图."""
+    from tools.classifier_utils import create_model, get_transforms, classify_directory
+    import csv
+
+    model = create_model(num_classes=2, pretrained=True)
+    model.eval()
+    transform = get_transforms(is_train=False)
+
+    for i in range(3):
+        img = np.zeros((100, 100, 3), dtype=np.uint8)
+        cv2.imwrite(str(tmp_path / f"crop_{i}_c0.50_vid.jpg"), img)
+
+    output_csv = str(tmp_path / "results.csv")
+    classify_directory(model, str(tmp_path), output_csv, transform, device="cpu")
+
+    with open(output_csv) as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+        assert len(rows) == 3
+        assert "filename" in rows[0]
+        assert "label" in rows[0]
+        assert "confidence" in rows[0]
+        assert rows[0]["label"] in ("0", "1")

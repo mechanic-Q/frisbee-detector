@@ -76,3 +76,46 @@ def get_transforms(is_train=True):
             T.ToTensor(),
             T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
+
+
+def classify_image(model, image_path, transform, device="cuda"):
+    """Classify a single image. Returns (label, confidence)."""
+    import torch
+    import cv2
+
+    img = cv2.imread(str(image_path))
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    tensor = transform(img).unsqueeze(0).to(device)
+
+    with torch.no_grad():
+        output = model(tensor)
+        probs = torch.softmax(output, dim=1)
+        conf, pred = probs.max(dim=1)
+
+    return pred.item(), conf.item()
+
+
+def classify_directory(model, img_dir, output_csv, transform, device="cuda"):
+    """Classify all images in a directory, write results to CSV."""
+    import csv
+    from pathlib import Path
+
+    img_dir = Path(img_dir)
+    results = []
+
+    image_files = sorted(
+        p for p in img_dir.iterdir()
+        if p.suffix.lower() in (".jpg", ".jpeg", ".png") and p.is_file()
+    )
+
+    for img_path in image_files:
+        label, conf = classify_image(model, str(img_path), transform, device=device)
+        results.append((img_path.name, label, conf))
+
+    with open(output_csv, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["filename", "label", "confidence"])
+        for filename, label, conf in results:
+            writer.writerow([filename, label, f"{conf:.4f}"])
+
+    return len(results)
