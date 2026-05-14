@@ -75,10 +75,10 @@ def main():
     results = load_results(results_path)
 
     st.title("Per-Box Detection Review")
-    st.caption(f"{tp + fp}/{len(images)} reviewed — press Y=TP  N=FP")
 
     tp = sum(1 for k in results if not k.endswith("_frame") and not k.endswith("_conf") and results[k] == "TP")
     fp = sum(1 for k in results if not k.endswith("_frame") and not k.endswith("_conf") and results[k] == "FP")
+    st.caption(f"{tp + fp}/{len(images)} reviewed — press Y=TP  N=FP")
     remaining = len(images) - tp - fp
     fp_rate = fp / (tp + fp) * 100 if (tp + fp) > 0 else 0
 
