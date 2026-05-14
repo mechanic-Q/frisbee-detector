@@ -42,3 +42,4 @@ venv/
 
 # Git worktrees
 .worktrees/
+data/
