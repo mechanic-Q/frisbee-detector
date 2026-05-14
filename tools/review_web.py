@@ -24,7 +24,7 @@ st.set_page_config(page_title="Per-Box Detection Review", layout="centered")
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--crop-dir", default="/tmp/perbox_crops")
+    parser.add_argument("--crop-dir", default="data/perbox_crops")
     args, _ = parser.parse_known_args()
     return args
 
@@ -75,7 +75,7 @@ def main():
     results = load_results(results_path)
 
     st.title("Per-Box Detection Review")
-    st.caption(f"{len(results.keys() // 3)}/{len(images)} reviewed — press Y=TP  N=FP")
+    st.caption(f"{tp + fp}/{len(images)} reviewed — press Y=TP  N=FP")
 
     tp = sum(1 for k in results if not k.endswith("_frame") and not k.endswith("_conf") and results[k] == "TP")
     fp = sum(1 for k in results if not k.endswith("_frame") and not k.endswith("_conf") and results[k] == "FP")
