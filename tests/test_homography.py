@@ -41,3 +41,40 @@ def test_roundtrip_known_transform():
         assert abs(result_px - px) < 1.0, f"px: {result_px} != {px}"
         assert abs(result_py - py) < 1.0, f"py: {result_py} != {py}"
 
+
+def test_collinear_points_return_none():
+    collinear = [
+        (100, 100, 0, 0),
+        (200, 200, 50, 18.5),
+        (300, 300, 100, 37),
+        (400, 400, 50, 18.5),
+    ]
+    matrix, error = compute_homography(collinear)
+    assert matrix is None or error > 50.0
+
+
+def test_ransac_five_points():
+    pixel_pts = [
+        (100, 500),
+        (640, 500),
+        (1180, 500),
+        (1180, 50),
+        (100, 50),
+    ]
+    world_pts = [
+        (0, 0),
+        (50, 0),
+        (100, 0),
+        (100, 37),
+        (0, 37),
+    ]
+    points = [(p[0], p[1], w[0], w[1]) for p, w in zip(pixel_pts, world_pts)]
+    matrix, error = compute_homography(points)
+    assert matrix is not None
+    assert error < 2.0
+
+    for px, py, wx, wy in points:
+        rwx, rwy = pixel_to_world(matrix, px, py)
+        assert abs(rwx - wx) < 1.0
+        assert abs(rwy - wy) < 1.0
+
