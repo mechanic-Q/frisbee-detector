@@ -8,7 +8,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils.homography import compute_homography, pixel_to_world, world_to_pixel
+from utils.homography import compute_homography, pixel_to_world, world_to_pixel, draw_field_overlay, warp_to_birdseye
 
 
 def test_roundtrip_known_transform():
@@ -77,4 +77,32 @@ def test_ransac_five_points():
         rwx, rwy = pixel_to_world(matrix, px, py)
         assert abs(rwx - wx) < 1.0
         assert abs(rwy - wy) < 1.0
+
+
+def _make_test_matrix():
+    points = [
+        (100, 500, 0, 0),
+        (1180, 500, 100, 0),
+        (1180, 50, 100, 37),
+        (100, 50, 0, 37),
+    ]
+    matrix, _ = compute_homography(points)
+    return matrix
+
+
+def test_draw_field_overlay_returns_same_size():
+    matrix = _make_test_matrix()
+    img = np.zeros((720, 1280, 3), dtype=np.uint8)
+    result = draw_field_overlay(img, matrix)
+    assert result.shape == img.shape
+    assert result.dtype == np.uint8
+    assert np.any(result > 0)
+
+
+def test_warp_to_birdseye_returns_fixed_size():
+    matrix = _make_test_matrix()
+    img = np.zeros((720, 1280, 3), dtype=np.uint8)
+    result = warp_to_birdseye(img, matrix)
+    assert result.shape == (370, 1000, 3)
+    assert result.dtype == np.uint8
 

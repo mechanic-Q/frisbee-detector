@@ -68,3 +68,36 @@ def world_to_pixel(matrix: np.ndarray, wx: float, wy: float) -> tuple[float, flo
     pt = np.array([[[wx, wy]]], dtype=np.float64)
     result = cv2.perspectiveTransform(pt, inv).reshape(2)
     return float(result[0]), float(result[1])
+
+
+FIELD_LINES_WORLD = [
+    [(0, 0), (100, 0)],
+    [(100, 0), (100, 37)],
+    [(100, 37), (0, 37)],
+    [(0, 37), (0, 0)],
+    [(0, 18.5), (100, 18.5)],
+]
+
+BIRDSEYE_SIZE = (1000, 370)
+
+
+def draw_field_overlay(image: np.ndarray, matrix: np.ndarray) -> np.ndarray:
+    overlay = image.copy()
+    pts_per_line = 100
+    for line in FIELD_LINES_WORLD:
+        pixels = []
+        for i in range(pts_per_line + 1):
+            t = i / pts_per_line
+            wx = line[0][0] + t * (line[1][0] - line[0][0])
+            wy = line[0][1] + t * (line[1][1] - line[0][1])
+            px, py = world_to_pixel(matrix, wx, wy)
+            if not (np.isnan(px) or np.isnan(py)):
+                pixels.append([int(round(px)), int(round(py))])
+        if len(pixels) > 1:
+            cv2.polylines(overlay, [np.array(pixels)], False, (0, 255, 0), 2, cv2.LINE_AA)
+    return overlay
+
+
+def warp_to_birdseye(image: np.ndarray, matrix: np.ndarray) -> np.ndarray:
+    inv_matrix = np.linalg.inv(matrix)
+    return cv2.warpPerspective(image, inv_matrix, BIRDSEYE_SIZE)
