@@ -4,6 +4,8 @@ Functions:
     compute_homography  — compute 3x3 transform from matched points
     pixel_to_world      — image pixel → field coordinate (meters)
     world_to_pixel      — field coordinate → image pixel
+    draw_field_overlay  — project standard field lines onto image
+    warp_to_birdseye    — generate top-down bird's-eye view
 """
 
 import cv2
@@ -79,15 +81,19 @@ FIELD_LINES_WORLD = [
 ]
 
 BIRDSEYE_SIZE = (1000, 370)
+LINE_SAMPLES = 100
 
 
 def draw_field_overlay(image: np.ndarray, matrix: np.ndarray) -> np.ndarray:
     overlay = image.copy()
-    pts_per_line = 100
+    try:
+        inv_matrix = np.linalg.inv(matrix)
+    except np.linalg.LinAlgError:
+        return overlay
     for line in FIELD_LINES_WORLD:
         pixels = []
-        for i in range(pts_per_line + 1):
-            t = i / pts_per_line
+        for i in range(LINE_SAMPLES + 1):
+            t = i / LINE_SAMPLES
             wx = line[0][0] + t * (line[1][0] - line[0][0])
             wy = line[0][1] + t * (line[1][1] - line[0][1])
             px, py = world_to_pixel(matrix, wx, wy)
@@ -99,5 +105,8 @@ def draw_field_overlay(image: np.ndarray, matrix: np.ndarray) -> np.ndarray:
 
 
 def warp_to_birdseye(image: np.ndarray, matrix: np.ndarray) -> np.ndarray:
-    inv_matrix = np.linalg.inv(matrix)
+    try:
+        inv_matrix = np.linalg.inv(matrix)
+    except np.linalg.LinAlgError:
+        return image
     return cv2.warpPerspective(image, inv_matrix, BIRDSEYE_SIZE)

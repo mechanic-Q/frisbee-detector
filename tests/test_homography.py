@@ -87,6 +87,7 @@ def _make_test_matrix():
         (100, 50, 0, 37),
     ]
     matrix, _ = compute_homography(points)
+    assert matrix is not None
     return matrix
 
 
