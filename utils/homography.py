@@ -6,9 +6,6 @@ Functions:
     world_to_pixel      — field coordinate → image pixel
 """
 
-import json
-from pathlib import Path
-
 import cv2
 import numpy as np
 
@@ -35,7 +32,7 @@ def compute_homography(points: list[tuple[float, float, float, float]]) -> tuple
             world_arr.astype(np.float32),
         )
     else:
-        matrix, mask = cv2.findHomography(
+        matrix, _ = cv2.findHomography(
             pixel_arr, world_arr,
             method=cv2.RANSAC,
             ransacReprojThreshold=3.0,
@@ -44,7 +41,10 @@ def compute_homography(points: list[tuple[float, float, float, float]]) -> tuple
     if matrix is None:
         return None, float("inf")
 
-    inv_matrix = np.linalg.inv(matrix)
+    try:
+        inv_matrix = np.linalg.inv(matrix)
+    except np.linalg.LinAlgError:
+        return None, float("inf")
     reprojected_pixels = cv2.perspectiveTransform(world_arr.reshape(1, -1, 2), inv_matrix).reshape(-1, 2)
     errors = np.linalg.norm(reprojected_pixels - pixel_arr, axis=1)
     rmse = float(np.sqrt(np.mean(errors ** 2)))
@@ -61,7 +61,10 @@ def pixel_to_world(matrix: np.ndarray, px: float, py: float) -> tuple[float, flo
 
 def world_to_pixel(matrix: np.ndarray, wx: float, wy: float) -> tuple[float, float]:
     """Convert world coordinates to pixel coordinates."""
-    inv = np.linalg.inv(matrix)
+    try:
+        inv = np.linalg.inv(matrix)
+    except np.linalg.LinAlgError:
+        return float("nan"), float("nan")
     pt = np.array([[[wx, wy]]], dtype=np.float64)
     result = cv2.perspectiveTransform(pt, inv).reshape(2)
     return float(result[0]), float(result[1])
