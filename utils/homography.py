@@ -4,10 +4,6 @@ Functions:
     compute_homography  — compute 3x3 transform from matched points
     pixel_to_world      — image pixel → field coordinate (meters)
     world_to_pixel      — field coordinate → image pixel
-    draw_field_overlay  — draw standard field lines on image
-    warp_to_birdseye    — generate top-down view of the field
-    save_calibration    — persist calibration to JSON
-    load_calibration    — load calibration from JSON
 """
 
 import json
@@ -48,8 +44,9 @@ def compute_homography(points: list[tuple[float, float, float, float]]) -> tuple
     if matrix is None:
         return None, float("inf")
 
-    projected = cv2.perspectiveTransform(pixel_arr.reshape(1, -1, 2), matrix).reshape(-1, 2)
-    errors = np.linalg.norm(projected - world_arr, axis=1)
+    inv_matrix = np.linalg.inv(matrix)
+    reprojected_pixels = cv2.perspectiveTransform(world_arr.reshape(1, -1, 2), inv_matrix).reshape(-1, 2)
+    errors = np.linalg.norm(reprojected_pixels - pixel_arr, axis=1)
     rmse = float(np.sqrt(np.mean(errors ** 2)))
 
     return matrix, rmse
