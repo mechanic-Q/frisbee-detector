@@ -6,6 +6,8 @@ Functions:
     world_to_pixel      — field coordinate → image pixel
     draw_field_overlay  — project standard field lines onto image
     warp_to_birdseye    — generate top-down bird's-eye view
+    save_calibration    — persist calibration to JSON
+    load_calibration    — load calibration from JSON
 """
 
 import json
