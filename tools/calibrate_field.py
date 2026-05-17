@@ -156,6 +156,10 @@ def main():
         quality = "Excellent" if error < 3 else ("Acceptable" if error < 8 else "Poor — consider recalibrating")
         st.success(f"Homography computed — RMSE: {error:.2f}px ({quality})")
 
+        st.subheader("Homography Matrix")
+        matrix_display = np.array2string(matrix, precision=4, suppress_small=True)
+        st.code(matrix_display, language="text")
+
         overlay = draw_field_overlay(frame, matrix)
         birdseye = warp_to_birdseye(frame, matrix)
 
