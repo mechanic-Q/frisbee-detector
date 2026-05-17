@@ -89,7 +89,7 @@ def main():
             cv2.putText(annotated, str(i + 1), (px + 10, py - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
-        st.image(annotated, width='stretch')
+        st.image(annotated, use_container_width=True)
 
         st.subheader("Add Control Point")
         input_cols = st.columns([1, 1, 1, 1, 1])
@@ -166,10 +166,10 @@ def main():
         vis_cols = st.columns(2)
         with vis_cols[0]:
             st.subheader("Field Line Overlay")
-            st.image(overlay, width='stretch')
+            st.image(overlay, use_container_width=True)
         with vis_cols[1]:
             st.subheader("Bird's-Eye View")
-            st.image(birdseye, width='stretch')
+            st.image(birdseye, use_container_width=True)
 
         st.subheader("Per-Point Errors")
         for i, pt in enumerate(pts):
