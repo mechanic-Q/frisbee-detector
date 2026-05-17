@@ -2,13 +2,22 @@
 
 import os
 import sys
+import tempfile
 
 import numpy as np
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils.homography import compute_homography, pixel_to_world, world_to_pixel, draw_field_overlay, warp_to_birdseye
+from utils.homography import (
+    compute_homography,
+    pixel_to_world,
+    world_to_pixel,
+    draw_field_overlay,
+    warp_to_birdseye,
+    save_calibration,
+    load_calibration,
+)
 
 
 def test_roundtrip_known_transform():
@@ -106,4 +115,44 @@ def test_warp_to_birdseye_returns_fixed_size():
     result = warp_to_birdseye(img, matrix)
     assert result.shape == (370, 1000, 3)
     assert result.dtype == np.uint8
+
+
+def test_save_load_roundtrip(tmp_path):
+    matrix = _make_test_matrix()
+    points = [
+        {"pixel": [100, 500], "world": [0, 0]},
+        {"pixel": [1180, 500], "world": [100, 0]},
+        {"pixel": [1180, 50], "world": [100, 37]},
+        {"pixel": [100, 50], "world": [0, 37]},
+    ]
+    save_calibration(
+        path=tmp_path / "test.json",
+        video="test.mp4",
+        image_size=[1280, 720],
+        field_size_m=[100, 37],
+        calibration_frame=0,
+        points=points,
+        matrix=matrix,
+        reprojection_error_px=0.5,
+    )
+
+    data = load_calibration(tmp_path / "test.json")
+    assert data["video"] == "test.mp4"
+    assert data["image_size"] == [1280, 720]
+    assert data["field_size_m"] == [100, 37]
+    assert len(data["points"]) == 4
+    assert np.allclose(data["matrix"], matrix)
+    assert abs(data["reprojection_error_px"] - 0.5) < 0.01
+
+
+def test_load_missing_file_raises():
+    with pytest.raises(FileNotFoundError):
+        load_calibration("/tmp/nonexistent_homography.json")
+
+
+def test_load_invalid_json_raises(tmp_path):
+    bad_file = tmp_path / "bad.json"
+    bad_file.write_text("not json")
+    with pytest.raises(ValueError):
+        load_calibration(bad_file)
 

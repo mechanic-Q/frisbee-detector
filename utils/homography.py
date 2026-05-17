@@ -8,6 +8,9 @@ Functions:
     warp_to_birdseye    — generate top-down bird's-eye view
 """
 
+import json
+from pathlib import Path
+
 import cv2
 import numpy as np
 
@@ -110,3 +113,60 @@ def warp_to_birdseye(image: np.ndarray, matrix: np.ndarray) -> np.ndarray:
     except np.linalg.LinAlgError:
         return image
     return cv2.warpPerspective(image, inv_matrix, BIRDSEYE_SIZE)
+
+
+_CALIBRATION_SCHEMA_KEYS = {
+    "video", "image_size", "field_size_m", "calibration_frame",
+    "points", "matrix", "reprojection_error_px",
+}
+
+
+def save_calibration(
+    path: Path | str,
+    video: str,
+    image_size: list[int],
+    field_size_m: list[float],
+    calibration_frame: int,
+    points: list[dict],
+    matrix: np.ndarray,
+    reprojection_error_px: float,
+) -> None:
+    """Save calibration data to JSON."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = {
+        "video": video,
+        "image_size": image_size,
+        "field_size_m": field_size_m,
+        "calibration_frame": calibration_frame,
+        "points": points,
+        "matrix": matrix.tolist(),
+        "reprojection_error_px": reprojection_error_px,
+    }
+    path.write_text(json.dumps(data, indent=2))
+
+
+def load_calibration(path: Path | str) -> dict:
+    """Load and validate calibration data from JSON."""
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(f"Calibration file not found: {path}")
+
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON in {path}: {e}")
+
+    missing = _CALIBRATION_SCHEMA_KEYS - set(data.keys())
+    if missing:
+        raise ValueError(f"Missing keys in {path}: {missing}")
+
+    if not data["points"]:
+        raise ValueError(f"Empty points list in {path}")
+
+    mat = np.array(data["matrix"])
+    if mat.shape != (3, 3):
+        raise ValueError(f"Matrix must be 3x3, got {mat.shape}")
+
+    data["matrix"] = mat
+    return data
