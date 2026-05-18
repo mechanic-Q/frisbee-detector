@@ -15,6 +15,7 @@ import numpy as np
 MAX_EXPECTED_DISPLACEMENT = 50.0  # px, at 25fps
 MIN_DISPLACEMENT = 5.0  # px/frame, threshold for "moving"
 REFERENCE_AREA = 200.0  # px², rough frisbee box area in 1280×720 video
+MIN_SCORE = 0.3  # minimum score to accept any candidate
 
 
 def init_kalman() -> cv2.KalmanFilter:
@@ -71,18 +72,25 @@ def score_candidates(
 
             pts_list = list(trajectory._pts)
             if len(pts_list) >= 3:
-                speed_score = min(5.0, dist / MIN_DISPLACEMENT)
+                recent = pts_list[-3:]
+                dx = recent[-1][0] - recent[0][0]
+                dy = recent[-1][1] - recent[0][1]
+                avg_speed = np.sqrt(dx ** 2 + dy ** 2) / max(len(recent) - 1, 1)
+                trajectory_speed_bonus = min(1.0, avg_speed / MIN_DISPLACEMENT)
             else:
-                speed_score = 0.5
+                trajectory_speed_bonus = 0.5
+            speed_score = min(1.0, dist / MIN_DISPLACEMENT)
 
-            score = (0.30 * motion_score + 0.20 * conf
-                     + 0.20 * area_consistent_score + 0.15 * aspect_score
-                     + 0.15 * speed_score)
+            score = (0.15 * motion_score + 0.15 * conf
+                     + 0.15 * area_consistent_score + 0.10 * aspect_score
+                     + 0.25 * speed_score + 0.20 * trajectory_speed_bonus)
 
         if score > best_score:
             best_score = score
             best_idx = i
 
+    if best_score < MIN_SCORE:
+        return -1
     return best_idx
 
 

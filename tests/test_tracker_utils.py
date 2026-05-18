@@ -101,12 +101,13 @@ def test_speed_score_favors_moving_boxes():
 
 
 def test_stationary_loses_to_moving():
+    """Tall stationary box vs square moving box: aspect + speed should overcome motion."""
     traj = Trajectory()
     traj.push(100, 100, 200)
     traj.push(101, 101, 200)
     traj.push(102, 102, 200)
-    stationary = {"box": [100, 100, 120, 120], "conf": 0.5}
-    moving = {"box": [200, 200, 220, 220], "conf": 0.35}
+    stationary = {"box": [100, 100, 110, 140], "conf": 0.5}    # tall box (person/hat)
+    moving = {"box": [115, 115, 135, 135], "conf": 0.5}        # square box (frisbee-like)
     cands = [stationary, moving]
     best = score_candidates(cands, traj, (105, 105))
-    assert best == 1, "moving candidate should beat stationary despite lower conf"
+    assert best == 1, "moving square box should beat tall stationary box"
