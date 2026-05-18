@@ -152,7 +152,7 @@ def evaluate_sahi(
 
     csv_rows: list[str] = []
     if output_csv:
-        csv_rows.append("frame,det_id,cx,cy,w,h,conf")
+        csv_rows.append("frame,idx,minx,miny,maxx,maxy,conf")
 
     t0 = time.time()
     idx = 0
@@ -193,7 +193,7 @@ def evaluate_sahi(
                 all_confs.append(conf)
                 if output_csv:
                     b = pred.bbox
-                    csv_rows.append(f"{processed},{len(csv_rows)},{b.center_x:.1f},{b.center_y:.1f},{b.width:.1f},{b.height:.1f},{conf:.4f}")
+                    csv_rows.append(f"{processed},{len(csv_rows)},{b.minx:.1f},{b.miny:.1f},{b.maxx:.1f},{b.maxy:.1f},{conf:.4f}")
 
         idx += 1
 
