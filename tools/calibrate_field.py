@@ -7,13 +7,9 @@ Usage:
     streamlit run tools/calibrate_field.py -- --video movie/25866279684-1-192.mp4
 """
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
 import argparse
 import base64
+import json
 import sys
 from pathlib import Path
 
@@ -87,7 +83,7 @@ def main():
 
     with col_left:
         st.subheader("Calibration Frame")
-        st.caption("Click on the image to place a point, then enter World X/Y and click 'Add Point'")
+        st.caption("点击图像上的场地线交叉点 → 自动填入像素坐标 → 填写 World X/Y → 点 Add Point")
 
         annotated = frame.copy()
         for i, pt in enumerate(st.session_state.points):
@@ -105,55 +101,51 @@ def main():
                style="width:100%;cursor:crosshair;border:1px solid #ccc;border-radius:4px"
                onclick="handleClick(event)">
           <div id="coord-display"
-               style="margin-top:6px;font-size:15px;color:#1976d2;font-weight:500;">
-            ↔ Click on a field-line intersection
+               style="margin-top:8px;font-size:15px;color:#1976d2;">
+            ↔ 点击场地线交叉点
           </div>
         </div>
         <script>
-          let lastX = -1, lastY = -1;
           function handleClick(e) {{
             const img = document.getElementById('calimg');
             const rect = img.getBoundingClientRect();
             const scaleX = img.naturalWidth / rect.width;
             const scaleY = img.naturalHeight / rect.height;
-            lastX = Math.round((e.clientX - rect.left) * scaleX);
-            lastY = Math.round((e.clientY - rect.top) * scaleY);
+            const x = Math.round((e.clientX - rect.left) * scaleX);
+            const y = Math.round((e.clientY - rect.top) * scaleY);
             document.getElementById('coord-display').innerHTML =
-              '📍 Selected: (' + lastX + ', ' + lastY +
-              ')  <button onclick="sendCoords()" style="padding:2px 12px;cursor:pointer">↳ Fill inputs</button>';
-          }}
-          function sendCoords() {{
-            if (lastX < 0) return;
-            Streamlit.setComponentValue(JSON.stringify({{x: lastX, y: lastY}}));
+              '✅ 选中: (' + x + ', ' + y + ') — 正在填入...';
+            window.parent.postMessage({{
+              type: 'streamlit:setComponentValue',
+              value: JSON.stringify({{x: x, y: y}})
+            }}, '*');
           }}
         </script>
         """
         click_data = components.html(clickable_html, height=520)
 
         if click_data is not None:
-            import json
             try:
                 data = json.loads(click_data) if isinstance(click_data, str) else click_data
-                st.session_state["click_px"] = int(data["x"])
-                st.session_state["click_py"] = int(data["y"])
+                st.session_state["px"] = int(data["x"])
+                st.session_state["py"] = int(data["y"])
+                st.rerun()
             except (json.JSONDecodeError, KeyError, TypeError):
                 pass
 
         st.subheader("Add Control Point")
         input_cols = st.columns([1, 1, 1, 1, 1])
         with input_cols[0]:
-            px_val = st.session_state.get("click_px", w // 2)
-            px_in = st.number_input("Pixel X", min_value=0, max_value=w, value=px_val, key="px")
+            px_in = st.number_input("像素 X", min_value=0, max_value=w, value=w // 2, key="px")
         with input_cols[1]:
-            py_val = st.session_state.get("click_py", h // 2)
-            py_in = st.number_input("Pixel Y", min_value=0, max_value=h, value=py_val, key="py")
+            py_in = st.number_input("像素 Y", min_value=0, max_value=h, value=h // 2, key="py")
         with input_cols[2]:
-            wx_in = st.number_input("World X (m) →", min_value=0.0, max_value=float(FIELD_W), value=0.0, step=1.0, key="wx")
+            wx_in = st.number_input("世界 X (m) →", min_value=0.0, max_value=float(FIELD_W), value=0.0, step=1.0, key="wx")
         with input_cols[3]:
-            wy_in = st.number_input("World Y (m) ↑", min_value=0.0, max_value=float(FIELD_H), value=0.0, step=1.0, key="wy")
+            wy_in = st.number_input("世界 Y (m) ↑", min_value=0.0, max_value=float(FIELD_H), value=0.0, step=1.0, key="wy")
         with input_cols[4]:
             st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("Add Point", type="primary"):
+            if st.button("添加点", type="primary"):
                 st.session_state.points.append({
                     "pixel": [float(px_in), float(py_in)],
                     "world": [float(wx_in), float(wy_in)],
@@ -162,53 +154,74 @@ def main():
 
         btn_cols = st.columns([1, 1, 1, 1])
         with btn_cols[0]:
-            if st.button("Undo Last"):
+            if st.button("撤销上一个"):
                 if st.session_state.points:
                     st.session_state.points.pop()
                     st.rerun()
         with btn_cols[1]:
-            if st.button("Clear All"):
+            if st.button("清空全部"):
                 st.session_state.points = []
                 st.rerun()
         with btn_cols[2]:
-            compute_clicked = st.button("Compute Homography", type="primary")
+            compute_clicked = st.button("计算 Homography", type="primary")
         with btn_cols[3]:
-            save_clicked = st.button("Save Calibration")
+            save_clicked = st.button("保存标定")
 
     with col_right:
-        st.subheader("Points")
+        st.subheader("已标记的点")
         if not st.session_state.points:
-            st.info("Click image → enter World X/Y → Add Point")
+            st.info("点击图像 → 填世界坐标 → 添加点")
         else:
             for i, pt in enumerate(st.session_state.points):
                 st.text(f"#{i+1}: px=({pt['pixel'][0]:.0f},{pt['pixel'][1]:.0f}) "
                         f"→ w=({pt['world'][0]:.1f},{pt['world'][1]:.1f})")
 
-        st.subheader("Field Coordinate Guide")
+        st.subheader("场地坐标对照表")
         st.markdown("""
 ```
-  (0,37)┌─────────────┬──────────────┐(100,37)
-        │             │              │
-        │   Endzone   │    Field     │
-   ←Y↑  │  (0,37)     │   (50,18.5)  │
-        │     to      │    center    │
-  (0,0) │  (0,18.5)   │              │
-        ├─────────────┼──────────────┤
-        │             │              │
-        │   Field     │   Endzone    │
-        │  (50,18.5)  │   (100,37)  │
-        │   center    │     to       │
-  (0,0) └─────────────┴──────────────┘(100,0)
-      X→ (right = 100m)
+ 场地俯视图（100m × 37m）：
+
+ (0,37)┌─────────────┬──────────────┐(100,37)
+       │             │     (远端)    │
+       │  左端区      │    比赛区     │
+       │  (0,37)~    │   (50,18.5)  │
+       │  (0,18.5)   │   中圈       │
+ (0,0) ├─────────────┼──────────────┤
+       │   (近端)    │       (100,18.5)
+       │  比赛区     │   右端区     │
+       │  (50,18.5)  │   (100,37)  │
+ (0,0) └─────────────┴──────────────┘(100,0)
+       X 向右 = 100m     Y 向上 = 37m
+       左下角 = 原点 (0,0)
 ```
-**Common points:**
-- Bottom-left corner: (0, 0)
-- Bottom-right corner: (100, 0)
-- Top-left corner: (0, 37)
-- Top-right corner: (100, 37)
-- Center line midpoint: (50, 18.5)
 """)
-        st.caption("Field: 100m × 37m. Origin = bottom-left.")
+        with st.expander("📖 使用说明（必读）"):
+            st.markdown("""
+**坐标系：**
+- 场地左下角 = World (0, 0)
+- X 轴：向右（长边，0→100m）
+- Y 轴：向上（短边，0→37m）
+
+**步骤：**
+1. 在左侧图像上**点击**一个场地线交叉点
+2. 像素坐标会自动填入"像素 X/Y"
+3. 在"世界 X/Y"里输入对应的**场地坐标**（参照上表）
+4. 点击**添加点**
+5. 重复 4-8 次（至少 4 个点才能计算）
+6. 点**Compute Homography**验证
+
+**常见点的坐标：**
+| 标记点 | 世界 X | 世界 Y |
+|--------|:----:|:----:|
+| 左下角 | 0 | 0 |
+| 右下角 | 100 | 0 |
+| 左上角 | 0 | 37 |
+| 右上角 | 100 | 37 |
+| 中线中点 | 50 | 18.5 |
+| 近边线中点 | 50 | 0 |
+| 远边线中点 | 50 | 37 |
+""")
+        st.caption("场地 100m × 37m。原点 = 左下角 (0,0)。")
 
     if compute_clicked:
         pts = st.session_state.points
