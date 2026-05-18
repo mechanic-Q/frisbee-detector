@@ -13,10 +13,16 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import argparse
+import base64
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import cv2
 import numpy as np
 import streamlit as st
+import streamlit.components.v1 as components
 
 from utils.homography import (
     compute_homography,
@@ -72,7 +78,7 @@ def main():
         return
 
     h, w = frame.shape[:2]
-    st.caption(f"Frame size: {w}x{h} | Field: {FIELD_W}m x {FIELD_H}m | Origin: bottom-left")
+    st.caption(f"Frame: {w}x{h} | Field: 100m×37m | Origin: bottom-left (0,0)")
 
     if "points" not in st.session_state:
         st.session_state.points = []
@@ -81,26 +87,70 @@ def main():
 
     with col_left:
         st.subheader("Calibration Frame")
-        annotated = frame.copy()
+        st.caption("Click on the image to place a point, then enter World X/Y and click 'Add Point'")
 
+        annotated = frame.copy()
         for i, pt in enumerate(st.session_state.points):
             px, py = int(pt["pixel"][0]), int(pt["pixel"][1])
             cv2.circle(annotated, (px, py), 8, (0, 255, 0), 2)
             cv2.putText(annotated, str(i + 1), (px + 10, py - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
-        st.image(annotated, use_container_width=True)
+        _, buf = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 90])
+        img_b64 = base64.b64encode(buf).decode()
+
+        clickable_html = f"""
+        <div style="position:relative;display:inline-block;width:100%">
+          <img id="calimg" src="data:image/jpeg;base64,{img_b64}"
+               style="width:100%;cursor:crosshair;border:1px solid #ccc;border-radius:4px"
+               onclick="handleClick(event)">
+          <div id="coord-display"
+               style="margin-top:6px;font-size:15px;color:#1976d2;font-weight:500;">
+            ↔ Click on a field-line intersection
+          </div>
+        </div>
+        <script>
+          let lastX = -1, lastY = -1;
+          function handleClick(e) {{
+            const img = document.getElementById('calimg');
+            const rect = img.getBoundingClientRect();
+            const scaleX = img.naturalWidth / rect.width;
+            const scaleY = img.naturalHeight / rect.height;
+            lastX = Math.round((e.clientX - rect.left) * scaleX);
+            lastY = Math.round((e.clientY - rect.top) * scaleY);
+            document.getElementById('coord-display').innerHTML =
+              '📍 Selected: (' + lastX + ', ' + lastY +
+              ')  <button onclick="sendCoords()" style="padding:2px 12px;cursor:pointer">↳ Fill inputs</button>';
+          }}
+          function sendCoords() {{
+            if (lastX < 0) return;
+            Streamlit.setComponentValue(JSON.stringify({{x: lastX, y: lastY}}));
+          }}
+        </script>
+        """
+        click_data = components.html(clickable_html, height=520)
+
+        if click_data is not None:
+            import json
+            try:
+                data = json.loads(click_data) if isinstance(click_data, str) else click_data
+                st.session_state["click_px"] = int(data["x"])
+                st.session_state["click_py"] = int(data["y"])
+            except (json.JSONDecodeError, KeyError, TypeError):
+                pass
 
         st.subheader("Add Control Point")
         input_cols = st.columns([1, 1, 1, 1, 1])
         with input_cols[0]:
-            px_in = st.number_input("Pixel X", min_value=0, max_value=w, value=w // 2, key="px")
+            px_val = st.session_state.get("click_px", w // 2)
+            px_in = st.number_input("Pixel X", min_value=0, max_value=w, value=px_val, key="px")
         with input_cols[1]:
-            py_in = st.number_input("Pixel Y", min_value=0, max_value=h, value=h // 2, key="py")
+            py_val = st.session_state.get("click_py", h // 2)
+            py_in = st.number_input("Pixel Y", min_value=0, max_value=h, value=py_val, key="py")
         with input_cols[2]:
-            wx_in = st.number_input("World X (m)", min_value=0.0, max_value=float(FIELD_W), value=0.0, step=1.0, key="wx")
+            wx_in = st.number_input("World X (m) →", min_value=0.0, max_value=float(FIELD_W), value=0.0, step=1.0, key="wx")
         with input_cols[3]:
-            wy_in = st.number_input("World Y (m)", min_value=0.0, max_value=float(FIELD_H), value=0.0, step=1.0, key="wy")
+            wy_in = st.number_input("World Y (m) ↑", min_value=0.0, max_value=float(FIELD_H), value=0.0, step=1.0, key="wy")
         with input_cols[4]:
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("Add Point", type="primary"):
@@ -128,11 +178,37 @@ def main():
     with col_right:
         st.subheader("Points")
         if not st.session_state.points:
-            st.info("No points added yet. Enter pixel/world coordinates and click 'Add Point'.")
+            st.info("Click image → enter World X/Y → Add Point")
         else:
             for i, pt in enumerate(st.session_state.points):
                 st.text(f"#{i+1}: px=({pt['pixel'][0]:.0f},{pt['pixel'][1]:.0f}) "
                         f"→ w=({pt['world'][0]:.1f},{pt['world'][1]:.1f})")
+
+        st.subheader("Field Coordinate Guide")
+        st.markdown("""
+```
+  (0,37)┌─────────────┬──────────────┐(100,37)
+        │             │              │
+        │   Endzone   │    Field     │
+   ←Y↑  │  (0,37)     │   (50,18.5)  │
+        │     to      │    center    │
+  (0,0) │  (0,18.5)   │              │
+        ├─────────────┼──────────────┤
+        │             │              │
+        │   Field     │   Endzone    │
+        │  (50,18.5)  │   (100,37)  │
+        │   center    │     to       │
+  (0,0) └─────────────┴──────────────┘(100,0)
+      X→ (right = 100m)
+```
+**Common points:**
+- Bottom-left corner: (0, 0)
+- Bottom-right corner: (100, 0)
+- Top-left corner: (0, 37)
+- Top-right corner: (100, 37)
+- Center line midpoint: (50, 18.5)
+""")
+        st.caption("Field: 100m × 37m. Origin = bottom-left.")
 
     if compute_clicked:
         pts = st.session_state.points
@@ -160,16 +236,20 @@ def main():
         matrix_display = np.array2string(matrix, precision=4, suppress_small=True)
         st.code(matrix_display, language="text")
 
-        overlay = draw_field_overlay(frame, matrix)
-        birdseye = warp_to_birdseye(frame, matrix)
+        _, obuf = cv2.imencode(".jpg", cv2.cvtColor(draw_field_overlay(frame, matrix), cv2.COLOR_RGB2BGR),
+                                [cv2.IMWRITE_JPEG_QUALITY, 90])
+        overlay_b64 = base64.b64encode(obuf).decode()
+        _, bbuf = cv2.imencode(".jpg", cv2.cvtColor(warp_to_birdseye(frame, matrix), cv2.COLOR_RGB2BGR),
+                                [cv2.IMWRITE_JPEG_QUALITY, 90])
+        birdseye_b64 = base64.b64encode(bbuf).decode()
 
         vis_cols = st.columns(2)
         with vis_cols[0]:
             st.subheader("Field Line Overlay")
-            st.image(overlay, use_container_width=True)
+            components.html(f'<img src="data:image/jpeg;base64,{overlay_b64}" style="width:100%">', height=400)
         with vis_cols[1]:
             st.subheader("Bird's-Eye View")
-            st.image(birdseye, use_container_width=True)
+            components.html(f'<img src="data:image/jpeg;base64,{birdseye_b64}" style="width:100%">', height=300)
 
         st.subheader("Per-Point Errors")
         for i, pt in enumerate(pts):
