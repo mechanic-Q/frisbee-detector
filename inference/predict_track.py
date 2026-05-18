@@ -23,6 +23,8 @@ from utils.homography import load_calibration, pixel_to_world
 from utils.tracker_utils import init_kalman, score_candidates, Trajectory
 
 LOST_TRACK_THRESHOLD = 15  # frames
+STATIONARY_CHECK_INTERVAL = 5
+STATIONARY_MAX_DISPLACEMENT = 8.0  # px
 
 
 def find_calibration(video_path: Path) -> dict | None:
@@ -139,6 +141,23 @@ def main():
                 })
 
         current_status = status
+
+        if (status == "tracking"
+                and frame_idx % STATIONARY_CHECK_INTERVAL == 0):
+            recent = trajectory.get_window(STATIONARY_CHECK_INTERVAL)
+            if len(recent) >= STATIONARY_CHECK_INTERVAL:
+                max_d = max(
+                    np.sqrt((recent[i][0] - recent[0][0]) ** 2 + (recent[i][1] - recent[0][1]) ** 2)
+                    for i in range(1, STATIONARY_CHECK_INTERVAL)
+                )
+                if max_d < STATIONARY_MAX_DISPLACEMENT:
+                    kf = init_kalman()
+                    trajectory = Trajectory()
+                    status = "searching"
+                    lost_counter = 0
+                    current_status = "searching"
+                    continue
+
         if not candidates:
             lost_counter += 1
             if lost_counter > LOST_TRACK_THRESHOLD:
