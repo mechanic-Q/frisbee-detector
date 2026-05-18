@@ -148,15 +148,15 @@ def main():
             else:
                 status = "predicting"
                 prediction = kf.predict()
-                px = float(prediction[0])
-                py = float(prediction[1])
+                px = float(prediction[0, 0])
+                py = float(prediction[1, 0])
                 if 0 <= px <= w and 0 <= py <= h:
                     trajectory.push(px, py, 0)
                 current_status = "predicting"
         else:
             prediction = kf.predict()
             is_tracking = status == "tracking"
-            pred_pt = (float(prediction[0]), float(prediction[1])) if is_tracking else None
+            pred_pt = (float(prediction[0, 0]), float(prediction[1, 0])) if is_tracking else None
             best_idx = score_candidates(candidates, trajectory if is_tracking else None, pred_pt)
             if best_idx >= 0:
                 best = candidates[best_idx]
@@ -173,8 +173,8 @@ def main():
                 trajectory.push(cx, cy, area)
                 current_status = "tracking"
 
-                vx = float(kf.statePost[2])
-                vy = float(kf.statePost[3])
+                vx = float(kf.statePost[2, 0])
+                vy = float(kf.statePost[3, 0])
                 row = {
                     "frame": frame_idx, "px": round(cx, 1), "py": round(cy, 1),
                     "vx": round(vx, 2), "vy": round(vy, 2),
