@@ -143,6 +143,7 @@ def main():
             lost_counter += 1
             if lost_counter > LOST_TRACK_THRESHOLD:
                 status = "searching"
+                current_status = "searching"
                 kf = init_kalman()
             else:
                 status = "predicting"
@@ -153,10 +154,10 @@ def main():
                     trajectory.push(px, py, 0)
                 current_status = "predicting"
         else:
-            prediction_arg = kf.predict() if status == "tracking" else None
-            pred_pt = (float(prediction_arg[0]), float(prediction_arg[1])) if prediction_arg is not None else None
-
-            best_idx = score_candidates(candidates, trajectory if status == "tracking" else None, pred_pt)
+            prediction = kf.predict()
+            is_tracking = status == "tracking"
+            pred_pt = (float(prediction[0]), float(prediction[1])) if is_tracking else None
+            best_idx = score_candidates(candidates, trajectory if is_tracking else None, pred_pt)
             if best_idx >= 0:
                 best = candidates[best_idx]
                 bx = best["box"]
@@ -178,6 +179,7 @@ def main():
                     "frame": frame_idx, "px": round(cx, 1), "py": round(cy, 1),
                     "vx": round(vx, 2), "vy": round(vy, 2),
                     "conf": round(float(best["conf"]), 4), "status": status,
+                    "wx": None, "wy": None,
                 }
                 if matrix is not None:
                     try:
