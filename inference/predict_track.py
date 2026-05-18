@@ -204,6 +204,9 @@ def main():
                         wx, wy = pixel_to_world(matrix, cx, cy)
                         row["wx"] = round(wx, 2)
                         row["wy"] = round(wy, 2)
+                        if not (0.0 <= wx <= 100.0 and 0.0 <= wy <= 37.0):
+                            # Outside field → likely FP → skip
+                            continue
                     except Exception:
                         row["wx"] = None
                         row["wy"] = None
