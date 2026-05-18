@@ -98,6 +98,9 @@ def main():
     out_video = None
 
     cap = cv2.VideoCapture(str(video_path))
+    if not cap.isOpened():
+        print(f"ERROR: Cannot open video: {video_path}")
+        sys.exit(1)
     fps = cap.get(cv2.CAP_PROP_FPS)
     w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -118,6 +121,7 @@ def main():
         verbose=False,
     )
 
+    frame_idx = 0
     for frame_idx, r in enumerate(results, 1):
         orig_frame = r.orig_img if hasattr(r, "orig_img") else None
         if orig_frame is None:
@@ -130,7 +134,7 @@ def main():
                 tid_int = int(tid)
 
                 row = {"frame": frame_idx, "track_id": tid_int, "px": round(px, 1),
-                       "py": round(py, 1), "wx": "", "wy": "", "conf": round(float(conf_val), 4)}
+                       "py": round(py, 1), "wx": None, "wy": None, "conf": round(float(conf_val), 4)}
 
                 if matrix is not None:
                     try:
@@ -138,7 +142,7 @@ def main():
                         row["wx"] = round(wx, 2)
                         row["wy"] = round(wy, 2)
                     except Exception:
-                        pass
+                        print(f"  WARNING: pixel_to_world failed frame {frame_idx}, track {tid_int}")
 
                 all_rows.append(row)
 
@@ -148,7 +152,7 @@ def main():
                     tid_label = f"#{tid_int}"
                     cv2.putText(orig_frame, tid_label, (x1, y1 - 5),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-                    if row["wx"] != "":
+                    if row["wx"] is not None:
                         coord_text = f"({row['wx']},{row['wy']})m"
                         cv2.putText(orig_frame, coord_text, (x2 - 120, y2 + 15),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
@@ -165,10 +169,11 @@ def main():
     if out_video is not None:
         out_video.release()
 
+    total_frames = frame_idx
     csv_path = output_dir / f"{video_path.stem}_tracks.csv"
     export_tracks_csv(all_rows, csv_path)
-    dets_per_sec = len(all_rows) / max(frame_idx / fps, 0.001) if fps > 0 else 0
-    print(f"\nDone: {frame_idx} frames, {len(all_rows)} detections ({dets_per_sec:.1f} dets/s)")
+    dets_per_sec = len(all_rows) / max(total_frames / fps, 0.001) if fps > 0 and total_frames > 0 else 0
+    print(f"\nDone: {total_frames} frames, {len(all_rows)} detections ({dets_per_sec:.1f} dets/s)")
     print(f"CSV:   {csv_path}")
     if out_video is not None:
         print(f"Video: {output_dir / f'{video_path.stem}_tracked.mp4'}")
