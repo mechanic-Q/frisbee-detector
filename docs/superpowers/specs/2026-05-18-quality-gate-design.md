@@ -29,11 +29,14 @@ score = 0.30 * motion_score      # 预测一致性（降权）
 
 **speed_score 公式：**
 ```python
-recent = list(trajectory._pts)[-3:]
-dx = recent[-1][0] - recent[0][0]
-dy = recent[-1][1] - recent[0][1]
-avg_speed = np.sqrt(dx**2 + dy**2) / max(len(recent) - 1, 1)
-speed_score = min(1.0, avg_speed / MIN_DISPLACEMENT)
+if len(list(trajectory._pts)) >= 3:
+    recent = list(trajectory._pts)[-3:]
+    dx = recent[-1][0] - recent[0][0]
+    dy = recent[-1][1] - recent[0][1]
+    avg_speed = np.sqrt(dx**2 + dy**2) / max(len(recent) - 1, 1)
+    speed_score = min(1.0, avg_speed / MIN_DISPLACEMENT)
+else:
+    speed_score = 0.5  # neutral when not enough data
 # MIN_DISPLACEMENT = 5.0 px/frame
 ```
 
