@@ -105,6 +105,8 @@ def main():
     print(f"\nTracking (single-frisbee)...")
 
     all_rows: list[dict] = []
+    last_wx: float | None = None
+    last_wy: float | None = None
     out_video = None
 
     cap = cv2.VideoCapture(str(video_path))
@@ -207,6 +209,15 @@ def main():
                         if not (0.0 <= wx <= 100.0 and 0.0 <= wy <= 37.0):
                             # Outside field → likely FP → skip
                             continue
+                        # Velocity check: reject > 25 m/s (impossible for frisbee)
+                        if last_wx is not None and last_wy is not None:
+                            dt = (frame_idx - int(all_rows[-1]["frame"])) / 25.0 if all_rows else 1.0
+                            if dt > 0:
+                                speed = np.sqrt((wx - last_wx) ** 2 + (wy - last_wy) ** 2) / max(dt, 0.001)
+                                if speed > 25.0:
+                                    continue
+                        last_wx = wx
+                        last_wy = wy
                     except Exception:
                         row["wx"] = None
                         row["wy"] = None
