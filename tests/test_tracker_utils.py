@@ -80,4 +80,9 @@ def test_aspect_score_favors_wide_boxes():
     wide_box = {"box": [100, 100, 120, 120], "conf": 0.5}
     cands = [tall_box, wide_box]
     best = score_candidates(cands, traj, (105, 105))
-    assert best == 1, "wide box should win"
+    assert best == 1, "wide (square-like) box should win over tall box"
+
+
+def test_score_empty_candidates():
+    best = score_candidates([], None, None)
+    assert best == -1, "empty candidates should return -1"

@@ -6,11 +6,14 @@ Functions:
     Trajectory           — ring buffer of tracked positions + areas
 """
 
+from collections import deque
+
 import cv2
 import numpy as np
 
 
 MAX_EXPECTED_DISPLACEMENT = 50.0  # px, at 25fps
+REFERENCE_AREA = 200.0  # px², rough frisbee box area in 1280×720 video
 
 
 def init_kalman() -> cv2.KalmanFilter:
@@ -25,6 +28,7 @@ def init_kalman() -> cv2.KalmanFilter:
     ], dtype=np.float32)
     kf.processNoiseCov = np.eye(4, dtype=np.float32) * 0.003
     kf.measurementNoiseCov = np.eye(2, dtype=np.float32) * 0.1
+    kf.errorCovPost = np.eye(4, dtype=np.float32) * 100.0
     return kf
 
 
@@ -62,7 +66,7 @@ def score_candidates(
             else:
                 area_consistent_score = 1.0
 
-            aspect_ratio = max(0.0, min(1.0, bw / max(bh, 1.0) / 2.0))
+            aspect_ratio = max(0.0, 1.0 - abs(np.log2(bw / max(bh, 1.0))))
             score = (0.35 * motion_score + 0.25 * conf
                      + 0.25 * area_consistent_score + 0.15 * aspect_ratio)
 
@@ -77,19 +81,17 @@ class Trajectory:
     """Ring buffer of tracked positions and areas."""
 
     def __init__(self, maxlen: int = 2000):
-        self._pts: list[tuple[float, float]] = []
+        self._pts = deque(maxlen=maxlen)
         self.areas: list[float] = []
-        self._maxlen = maxlen
 
     def push(self, px: float, py: float, area: float) -> None:
         self._pts.append((px, py))
         self.areas.append(area)
-        if len(self._pts) > self._maxlen:
-            self._pts.pop(0)
+        if len(self.areas) > len(self._pts):
             self.areas.pop(0)
 
     def get_window(self, n: int = 50) -> list[tuple[float, float]]:
-        return self._pts[-n:]
+        return list(self._pts)[-n:]
 
     def last_position(self) -> tuple[float, float] | None:
         return self._pts[-1] if self._pts else None
