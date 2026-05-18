@@ -35,10 +35,17 @@ Homography JSON ─┘                          ↓
 **参数：**
 - `--video`：输入视频路径（必填）
 - `--model`：模型路径（默认 v3）
-- `--calibration`：标定 JSON 路径（默认从视频名自动查找）
+- `--calibration`：标定 JSON 路径（可选，自动查找规则见下文）
 - `--conf`：置信度阈值（默认 0.35）
 - `--output-dir`：输出目录（默认 `runs/track/<video_name>/`）
-- `--visualize`：是否生成标注视频（默认 True）
+- `--no-visualize`：是否跳过生成标注视频（默认生成）
+
+**标定文件自动查找规则：**
+1. 如果传了 `--calibration`，直接使用
+2. 否则按优先级尝试：
+   a. `configs/homography/<video_stem>.json`（精确匹配）
+   b. `configs/homography/<video_stem_up_to_first_underscore>.json`（如 `25866279684-1-192_55-56min` → `25866279684-1-192.json`）
+3. 找不到则打印警告 `⚠️ No calibration found, output will be pixel-only`，CSV 中 `wx, wy` 留空，**不退出**。
 
 **流程：**
 ```python
@@ -93,7 +100,7 @@ frame, track_id, px, py, wx, wy, conf
 
 | 场景 | 处理 |
 |------|------|
-| 标定 JSON 不存在 | 自动从 `configs/homography/<video_stem>.json` 查找，找不到则报错退出 |
+| 标定 JSON 不存在 | 警告并继续，仅输出像素坐标，CSV 中 `wx, wy` 留空 |
 | 某帧追踪无结果 | 跳过该帧，不中断 |
 | bbox 坐标越界 | clamp 到图像边界后在标注 |
 | CSV 写入失败 | print 错误消息，不覆盖可能已存在的同名 CSV |
@@ -102,10 +109,10 @@ frame, track_id, px, py, wx, wy, conf
 ### 5. 使用方式
 
 ```bash
-# 基本用法（自动查找标定文件）
+# 基本用法（自动查找标定文件，弱匹配）
 python3 inference/predict_track.py --video movie/25866279684-1-192_55-56min.mp4
 
-# 指定标定文件
+# 指定标定文件（精确匹配）
 python3 inference/predict_track.py \
   --video movie/25866279684-1-192_55-56min.mp4 \
   --calibration configs/homography/25866279684-1-192.json
