@@ -13,6 +13,7 @@ import numpy as np
 
 
 MAX_EXPECTED_DISPLACEMENT = 50.0  # px, at 25fps
+MIN_DISPLACEMENT = 5.0  # px/frame, threshold for "moving"
 REFERENCE_AREA = 200.0  # px², rough frisbee box area in 1280×720 video
 
 
@@ -66,9 +67,17 @@ def score_candidates(
             else:
                 area_consistent_score = 1.0
 
-            aspect_ratio = max(0.0, 1.0 - abs(np.log2(bw / max(bh, 1.0))))
-            score = (0.35 * motion_score + 0.25 * conf
-                     + 0.25 * area_consistent_score + 0.15 * aspect_ratio)
+            aspect_score = max(0.0, 1.0 - abs(np.log2(bw / max(bh, 1.0))))
+
+            pts_list = list(trajectory._pts)
+            if len(pts_list) >= 3:
+                speed_score = min(5.0, dist / MIN_DISPLACEMENT)
+            else:
+                speed_score = 0.5
+
+            score = (0.30 * motion_score + 0.20 * conf
+                     + 0.20 * area_consistent_score + 0.15 * aspect_score
+                     + 0.15 * speed_score)
 
         if score > best_score:
             best_score = score
