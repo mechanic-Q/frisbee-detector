@@ -47,7 +47,9 @@
 - 测量噪声：高（YOLO 位置有抖动）
 - 过程噪声：高（飞盘可加速）
 - 无新检测→最多纯预测 15 帧
-- 超 15 帧或框越界→轨迹重置，进入搜索模式
+- 超 15 帧或 Kalman 预测的 (px, py) 超出图像边界 w×h → 轨迹重置，进入搜索模式
+
+> **主循环变化：** 不再调用 `model.track()`（ByteTrack），改为逐帧 `model(frame, conf=args.conf, verbose=False)` 取检测框。YOLO 只做检测，追踪完全由 Kalman + 评分器接管。
 
 初始化（`init_kalman()`）：
 
@@ -58,8 +60,8 @@ kf.transitionMatrix = np.array([
     [1,0,1,0],[0,1,0,1],
     [0,0,1,0],[0,0,0,1]
 ], dtype=np.float32)
-kf.processNoiseCov = np.eye(4, dtype=np.float32) * 0.003
-kf.measurementNoiseCov = np.eye(2, dtype=np.float32) * 0.1
+kf.processNoiseCov = np.eye(4, dtype=np.float32) * 0.003  # 初始值，可能需要调优
+kf.measurementNoiseCov = np.eye(2, dtype=np.float32) * 0.1  # 初始值，可能需要调优
 ```
 
 ### 2. 候选评分器（utils/tracker_utils.py）
@@ -70,22 +72,27 @@ kf.measurementNoiseCov = np.eye(2, dtype=np.float32) * 0.1
 ```python
 score = 0.7 * conf + 0.3 * area_size_score
 ```
-其中 `area_size_score = 1.0 - clamp(abs(log2(area / 200)), 0, 1)`（假设飞盘框约 200px²，偏差越大分越低）
+其中 `area_size_score = max(0, min(1, 1.0 - abs(log2(area / 200))))`（假设飞盘框约 200px²，偏差越大分越低）
 
 **有历史：**
 ```python
-motion_score = 1.0 - clamp(dist_to_prediction / MAX_EXPECTED_DISPLACEMENT, 0, 1)
+motion_score = max(0, min(1, 1.0 - dist_to_prediction / MAX_EXPECTED_DISPLACEMENT))
 # MAX_EXPECTED_DISPLACEMENT = 50px (25fps下飞盘最大帧间位移)
-area_consistent_score = max(0.0, 1.0 - abs(log2(float(area) / float(expected_areas[-1]))))
-score = 0.4 * motion_score + 0.3 * conf + 0.3 * area_consistent_score
+area_consistent_score = max(0.0, 1.0 - abs(log2(float(area) / float(trajectory.areas[-1]))))
+aspect_score = max(0, min(1, float(box_width) / float(box_height) / 2.0))
+score = (0.35 * motion_score + 0.25 * conf + 0.25 * area_consistent_score
+         + 0.15 * aspect_score)
 ```
+
+返回最高分候选的索引。其中 `aspect_score` 奖励宽比高大的框（飞盘框宽高比通常 >0.8，人框 <0.6），抑制快跑的人。
 
 返回最高分候选的索引。
 
 ### 3. 轨迹管理（utils/tracker_utils.py）
 
 - `Trajectory` 类：维护 `(px, py, frame)` 环形缓冲，最大 2000 帧
-- 方法：`push(px, py, frame)` → 追加到队尾
+- 同步维护 `areas` 列表：每帧选中框的面积，与坐标同步 push
+- 方法：`push(px, py, frame, area)` → 追加坐标和面积
 - 方法：`get_window(n=50)` → 返回最近 N 帧的坐标列表（用于绘制）
 - 方法：`last_position()` → 返回最后一个坐标
 
@@ -138,6 +145,7 @@ status: `"tracking"`（正常追踪），`"predicting"`（Kalman 纯预测），
 4. `test_trajectory_ring_behavior` — 环形缓冲无误
 5. `test_score_prioritizes_confidence` — 无历史时高分置信度胜出
 6. `test_score_uses_motion_when_predicting` — 有预测时运动一致性胜出
+7. `test_aspect_score_favors_wide_boxes` — 宽高比评分偏好横长框（飞盘）而非竖高框（人）
 
 ## 不在此设计中的范围
 
