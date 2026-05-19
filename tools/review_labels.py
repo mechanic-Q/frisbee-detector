@@ -36,7 +36,20 @@ def main():
     frames_dir = Path(args.frames_dir)
     labels_dir = frames_dir.parent / "labels_gsam"
     
-    frames = sorted(frames_dir.glob("*.jpg"))
+    all_frames = sorted(frames_dir.glob("*.jpg"))
+    
+    # Only show frames that have a GSAM label with a frisbee detection
+    frames = []
+    for f in all_frames:
+        txt = labels_dir / f"{f.stem}.txt"
+        if txt.exists():
+            content = txt.read_text().strip()
+            if content and content.startswith("0 "):
+                frames.append(f)
+
+    if not frames:
+        st.warning(f"No GSAM-labeled frames found in {labels_dir}. Showing all frames instead.")
+        frames = all_frames
     if not frames:
         st.error("No frames found")
         return
@@ -103,7 +116,7 @@ def main():
     with col4:
         pass
 
-    st.caption(f"{idx+1}/{total} | {fname}.jpg  |  GSAM label: {'✅' if has_label else '❌ none'}")
+    st.caption(f"{idx+1}/{len(frames)} | {fname}.jpg  |  GSAM label: {'✅' if has_label else '❌ none'} | Labels dir: {labels_dir}")
 
     if idx >= total - 1:
         st.success("All frames reviewed!")
