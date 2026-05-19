@@ -63,7 +63,8 @@ def save_p2_cache(cache_path: Path, data: dict) -> None:
     cache_path.write_text(json.dumps(data, indent=2))
 
 
-def run_p2_inference(model_path: str, frames: list[Path], cache_path: Path) -> dict:
+def run_p2_inference(model_path: str, frames: list[Path], cache_path: Path,
+                     conf: float = 0.25) -> dict:
     """Run P2 model on frames, cache results. Returns {stem: {cx,cy,w,h,conf}}."""
     cached = load_p2_cache(cache_path)
     if cached:
@@ -74,7 +75,7 @@ def run_p2_inference(model_path: str, frames: list[Path], cache_path: Path) -> d
     model = YOLO(model_path)
     results = {}
     for i, f in enumerate(frames):
-        r = model.predict(str(f), conf=0.25, verbose=False)[0]
+        r = model.predict(str(f), conf=conf, verbose=False)[0]
         if r.boxes is not None and len(r.boxes) > 0:
             best = r.boxes[0]
             results[f.stem] = {

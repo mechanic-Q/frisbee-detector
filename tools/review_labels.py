@@ -92,7 +92,7 @@ def load_frames(frames_dir: Path, labels_dir: Path) -> list[Path]:
 
 
 def load_p2_data(model_path: str | None, frames: list[Path],
-                 frames_dir: Path, rebuild: bool) -> dict:
+                 frames_dir: Path, rebuild: bool, conf: float = 0.25) -> dict:
     """Load or compute P2 inference results."""
     if not model_path:
         return {}
@@ -101,7 +101,7 @@ def load_p2_data(model_path: str | None, frames: list[Path],
     if rebuild and cache_path.exists():
         cache_path.unlink()
 
-    return run_p2_inference(model_path, frames, cache_path)
+    return run_p2_inference(model_path, frames, cache_path, conf)
 
 
 def draw_bbox(img, box, color, label, h, w):
@@ -181,7 +181,8 @@ def main():
     p2_data = {}
     if args.model:
         with st.spinner("Running P2 inference (cached after first run)..."):
-            p2_data = load_p2_data(args.model, frames, frames_dir, args.rebuild_cache)
+            p2_data = load_p2_data(args.model, frames, frames_dir,
+                                   args.rebuild_cache, args.conf)
 
     # review_result.json is saved at <frames_parent>/review_result.json
     # alongside frames/ and labels/
