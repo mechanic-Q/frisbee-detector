@@ -84,6 +84,10 @@ def main():
         st.error(f"Cannot read {frame_path}")
         return
     h, w = img.shape[:2]
+    if max(w, h) > 1000:
+        scale = 1000 / max(w, h)
+        img = cv2.resize(img, None, fx=scale, fy=scale)
+        h, w = img.shape[:2]
 
     # Load existing labels
     txt_path = labels_dir / frame_path.with_suffix(".txt").name
