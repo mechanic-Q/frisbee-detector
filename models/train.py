@@ -12,6 +12,7 @@ from pathlib import Path
 from ultralytics import YOLO
 
 from configs.models import DEFAULT_MODEL_SIZE, DEFAULT_IMGSZ, DEFAULT_EPOCHS, DEFAULT_BATCH
+from configs.paths import PROJECT_ROOT
 
 
 def train_frisbee_detector(
@@ -114,7 +115,17 @@ if __name__ == "__main__":
     parser.add_argument("--validate-only", action="store_true", help="Only run validation")
     parser.add_argument("--model-path", default=None, help="Model path for --validate-only")
     parser.add_argument("--cache", action="store_true", help="Cache images in RAM")
+    parser.add_argument("--product", default=None, help="Product YAML path (auto-merges before training)")
     args = parser.parse_args()
+
+    if args.product:
+        product_path = Path(args.product)
+        if not product_path.exists():
+            print(f"ERROR: Product YAML not found: {product_path}")
+            exit(1)
+        from tools.merge_datasets import merge_from_product
+        merge_from_product(product_path)
+        args.data = str(PROJECT_ROOT / "configs" / "frisbee_merged.yaml")
 
     if args.validate_only:
         if not args.model_path:
