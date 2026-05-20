@@ -106,7 +106,7 @@ if __name__ == "__main__":
     parser.add_argument("--imgsz", type=int, default=DEFAULT_IMGSZ, help="Image size")
     parser.add_argument("--batch", type=int, default=DEFAULT_BATCH, help="Batch size")
     parser.add_argument("--resume", default=None, help="Checkpoint to resume/fine-tune from")
-    parser.add_argument("--workers", type=int, default=4, help="DataLoader workers")
+    parser.add_argument("--workers", type=int, default=2, help="DataLoader workers")
     parser.add_argument("--device", default="0", help="CUDA device")
     parser.add_argument("--box", type=float, default=7.5, help="Box loss weight")
     parser.add_argument("--close-mosaic", type=int, default=10, help="Disable mosaic in last N epochs")
