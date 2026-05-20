@@ -37,6 +37,8 @@ def train_frisbee_detector(
     elif model_spec:
         print(f"Loading model: {model_spec}")
         model = YOLO(model_spec)
+    else:
+        print(f"Loading base model: yolov8{model_size}.pt")
         model = YOLO(f"yolov8{model_size}.pt")
 
     name = run_name if run_name else f"frisbee_det_{model_size}"
@@ -46,7 +48,7 @@ def train_frisbee_detector(
         imgsz=imgsz,
         batch=batch,
         name=name,
-        project="runs/detect",
+        project="runs",
         pretrained=True,
         optimizer="AdamW",
         lr0=0.001,
