@@ -39,10 +39,15 @@ def load_product(yaml_path: Path) -> dict:
     return product
 
 
-def collect_from_pool(pool: Path, sources: list[str]) -> list[tuple[Path, Path]]:
+def collect_from_pool(
+    pool: Path,
+    sources: list[str],
+    exclude: set[str] | None = None,
+) -> list[tuple[Path, Path]]:
     """Scan pool and return sorted [(img, lbl), ...] filtered by source prefix."""
     files: list[tuple[Path, Path]] = []
-    source_set = set(sources)
+    exclude_set = exclude or set()
+    source_set = set(sources) - exclude_set
     for lbl in sorted((pool / "labels").glob("*.txt")):
         prefix = lbl.stem.split("_")[0]
         if prefix not in source_set:
@@ -63,6 +68,15 @@ def _hash_manifest(pool: Path) -> str:
     return hashlib.sha256(manifest.read_bytes()).hexdigest()
 
 
+def _hash_merge_inputs(pool: Path, product_yaml: Path, seed: int) -> str:
+    """Hash all inputs that affect the merged dataset contents."""
+    h = hashlib.sha256()
+    h.update(_hash_manifest(pool).encode())
+    h.update(product_yaml.read_bytes())
+    h.update(str(seed).encode())
+    return h.hexdigest()
+
+
 def merge_from_product(product_yaml: Path, seed: int = 42) -> None:
     """Merge dataset based on product YAML. Idempotent (skips if pool unchanged)."""
     product = load_product(product_yaml)
@@ -71,19 +85,22 @@ def merge_from_product(product_yaml: Path, seed: int = 42) -> None:
     if not pool.exists():
         raise FileNotFoundError(f"Pool not found: {pool}")
 
-    # C2: Skip if pool unchanged (same manifest hash + same seed)
-    manifest_hash = f"{_hash_manifest(pool)}:{seed}"
+    # C2: Skip if pool and product config are unchanged.
+    manifest_hash = _hash_merge_inputs(pool, product_yaml, seed)
     if HASH_FILE.exists() and HASH_FILE.read_text().strip() == manifest_hash:
         print(f"Pool unchanged (hash: {manifest_hash[:12]}...), merge skipped.")
         print(f"Output ready: {CONFIG_OUT}")
         return
 
     sources = product["sources"]
-    train_only = set(product.get("train_only", []))
+    exclude = set(product.get("exclude", []))
+    train_only = set(product.get("train_only", [])) - exclude
     ratios = tuple(product["split"].values())  # {train, val, test}
 
     print(f"Collecting from pool: {pool}")
-    all_files = collect_from_pool(pool, sources)
+    if exclude:
+        print(f"  Excluding sources: {sorted(exclude)}")
+    all_files = collect_from_pool(pool, sources, exclude=exclude)
     print(f"  Total files: {len(all_files)}")
 
     # Separate train_only and regular files

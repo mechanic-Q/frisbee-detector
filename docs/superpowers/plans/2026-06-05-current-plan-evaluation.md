@@ -73,5 +73,24 @@ python3 inference/predict_video.py --model runs/detect/frisbee_det_s_v3/weights/
 ## Recommended Next Plan Step
 
 P2 remains near the artifact-derived 8.5% detection rate, so the next
-superpowers step is to retrain a cleaned-label P2 model. This is a long training
-task and should not be started without explicit approval.
+superpowers step is to retrain a cleaned-label P2 model. This is a long
+training task and should not be started without explicit approval.
+
+## P2 Retrain Preflight
+
+Completed before starting any long training:
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Branch | OK | `git branch --show-current` -> `feat/p2-detector` |
+| Dataset validity | OK | `python3 tools/verify_dataset.py configs/frisbee_merged.yaml` -> `Total issues: 0` |
+| `tmux` | OK | `tmux 3.4` |
+| GPU visibility | OK outside sandbox | `nvidia-smi` -> RTX 5080, 16GB; escalated PyTorch sees CUDA device 0 |
+| P2 YAML | OK | `YOLO("yolov8s-p2.yaml")` constructs a `DetectionModel` |
+| `game1080` samples | OK | `data/datasets/frisbee_merged/images/train` has 200 `game1080_*` images: 46 positive, 154 negative |
+| Full-frame test-video hard negatives | Must fix before training | Current merged data contains 202 empty-label `hardneg_*` full-frame images at 1280x720, including 165 in train from `55-56min` / `clip_20-23min` test video names |
+
+The merge script now needs to honor product-level `exclude` entries before the
+next P2 retrain. The local product config has been adjusted to exclude
+`hardneg`, but the merged dataset has not been regenerated yet because that
+would replace existing generated data.
