@@ -94,3 +94,38 @@ The merge script now needs to honor product-level `exclude` entries before the
 next P2 retrain. The local product config has been adjusted to exclude
 `hardneg`, but the merged dataset has not been regenerated yet because that
 would replace existing generated data.
+
+## Cleaned Dataset Projection
+
+Computed as a read-only preflight from `frisbee-data/products/v1.yaml` and
+`/mnt/e/frisbee-pool`; this did not call `merge_from_product()` and did not
+rewrite `data/datasets/frisbee_merged`.
+
+Current local product settings:
+
+| Field | Value |
+| --- | --- |
+| `exclude` | `hardneg` |
+| Effective `train_only` | `game1080` |
+| Total after exclude | 4948 |
+| `hardneg` present after exclude | false |
+
+Projected source counts after exclude:
+
+| Source | Total | Positive | Negative |
+| --- | ---: | ---: | ---: |
+| `coco` | 2268 | 2268 | 0 |
+| `coconeg` | 445 | 0 | 445 |
+| `game1080` | 200 | 46 | 154 |
+| `kaggle` | 851 | 851 | 0 |
+| `negatives` | 80 | 0 | 80 |
+| `pseudo` | 103 | 10 | 93 |
+| `ultimateml` | 1001 | 1001 | 0 |
+
+Projected split with seed 42:
+
+| Split | Total | Positive | Negative | Sources |
+| --- | ---: | ---: | ---: | --- |
+| `train` | 3998 | 3348 | 650 | `coco`, `coconeg`, `game1080`, `kaggle`, `negatives`, `pseudo`, `ultimateml` |
+| `val` | 474 | 411 | 63 | `coco`, `coconeg`, `kaggle`, `negatives`, `pseudo`, `ultimateml` |
+| `test` | 476 | 417 | 59 | `coco`, `coconeg`, `kaggle`, `negatives`, `pseudo`, `ultimateml` |
