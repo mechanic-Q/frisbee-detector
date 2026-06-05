@@ -4,20 +4,20 @@ Supports standard YOLO inference and SAHI sliced inference for small objects.
 """
 
 import argparse
+import sys
 import time
 from pathlib import Path
 
 import cv2
+from ultralytics import YOLO
 
-import sys
 from pathlib import Path as _Path
+
 sys.path.insert(0, str(_Path(__file__).resolve().parent.parent))
 del _Path
 
-from ultralytics import YOLO
-
-from configs.paths import EXTERNAL
-from configs.models import DEFAULT_MODEL, DEFAULT_CONF
+from configs.models import DEFAULT_CONF, DEFAULT_MODEL  # noqa: E402
+from configs.paths import EXTERNAL  # noqa: E402
 
 
 def _print_stats(total_frames: int, frames_with_det: int, total_detections: int,

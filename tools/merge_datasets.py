@@ -4,21 +4,20 @@ Usage:
     python3 tools/merge_datasets.py --product ../frisbee-data/products/v1.yaml
 """
 
-import sys
-from pathlib import Path as _Path
-sys.path.insert(0, str(_Path(__file__).resolve().parent.parent))
-del _Path
-
 import argparse
 import hashlib
-import json
 import shutil
+import sys
 from pathlib import Path
+from pathlib import Path as _Path
 
 import yaml
 
-from configs.paths import PROJECT_ROOT
-from utils.dataset import split_items, ensure_split_dirs, write_yaml_config
+sys.path.insert(0, str(_Path(__file__).resolve().parent.parent))
+del _Path
+
+from configs.paths import PROJECT_ROOT  # noqa: E402
+from utils.dataset import ensure_split_dirs, split_items, write_yaml_config  # noqa: E402
 
 DST_DIR = PROJECT_ROOT / "data" / "datasets" / "frisbee_merged"
 CONFIG_OUT = PROJECT_ROOT / "configs" / "frisbee_merged.yaml"

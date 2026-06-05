@@ -6,8 +6,6 @@ import os
 import sys
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from inference.predict_track import find_calibration

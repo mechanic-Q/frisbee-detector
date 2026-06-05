@@ -11,7 +11,6 @@
   - labels/train/, labels/val/, labels/test/
   - frisbee.yaml
 """
-import os
 import shutil
 import random
 from pathlib import Path
@@ -72,7 +71,7 @@ def main():
         lbl_dir = DST_DIR / "labels" / split_name
         for txt in lbl_dir.glob("*.txt"):
             with open(txt) as f:
-                total_instances += sum(1 for l in f if l.strip())
+                total_instances += sum(1 for line in f if line.strip())
 
     yaml_content = f"path: {DST_DIR}\ntrain: images/train\nval: images/val\ntest: images/test\nnc: 1\nnames: ['frisbee']\n"
     yaml_path = DST_DIR / "frisbee.yaml"

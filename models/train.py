@@ -1,18 +1,18 @@
 """Train a YOLOv8 frisbee detection model with small-object optimizations."""
 
-import sys
-from pathlib import Path as _Path
-sys.path.insert(0, str(_Path(__file__).resolve().parent.parent))
-del _Path
-
 import argparse
 import os
+import sys
 from pathlib import Path
+from pathlib import Path as _Path
 
 from ultralytics import YOLO
 
-from configs.models import DEFAULT_MODEL_SIZE, DEFAULT_IMGSZ, DEFAULT_EPOCHS, DEFAULT_BATCH
-from configs.paths import PROJECT_ROOT
+sys.path.insert(0, str(_Path(__file__).resolve().parent.parent))
+del _Path
+
+from configs.models import DEFAULT_BATCH, DEFAULT_EPOCHS, DEFAULT_IMGSZ, DEFAULT_MODEL_SIZE  # noqa: E402
+from configs.paths import PROJECT_ROOT  # noqa: E402
 
 
 def train_frisbee_detector(

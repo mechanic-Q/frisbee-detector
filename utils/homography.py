@@ -92,7 +92,7 @@ LINE_SAMPLES = 100
 def draw_field_overlay(image: np.ndarray, matrix: np.ndarray) -> np.ndarray:
     overlay = image.copy()
     try:
-        inv_matrix = np.linalg.inv(matrix)
+        np.linalg.inv(matrix)
     except np.linalg.LinAlgError:
         return overlay
     for line in FIELD_LINES_WORLD:

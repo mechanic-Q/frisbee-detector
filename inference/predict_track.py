@@ -102,7 +102,7 @@ def main():
     trajectory = Trajectory()
     status = "searching"
     lost_counter = 0
-    print(f"\nTracking (single-frisbee)...")
+    print("\nTracking (single-frisbee)...")
 
     all_rows: list[dict] = []
     last_wx: float | None = None

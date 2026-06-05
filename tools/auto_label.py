@@ -88,7 +88,7 @@ def main():
             dst_lbl.touch()
             negative_count += 1
 
-    print(f"\nAuto-labeling complete:")
+    print("\nAuto-labeling complete:")
     print(f"  Labeled (>= {CONF_THRESHOLD}): {labeled_count}")
     print(f"  Negatives (no detection):    {negative_count}")
     print(f"  Total:                       {labeled_count + negative_count}")

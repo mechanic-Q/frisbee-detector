@@ -32,13 +32,17 @@ def analyze_yolo_dataset(labels_dir, class_names):
     for cls, count in sorted(stats["class_counts"].items()):
         name = class_names.get(cls, f"class_{cls}")
         print(f"    {name} (id={cls}): {count} instances in {stats['images_per_class'][cls]} images")
-    print(f"\n  BBox size distribution (relative to image):")
+    print("\n  BBox size distribution (relative to image):")
     sizes = {"tiny (<0.1%)": 0, "small (0.1-1%)": 0, "medium (1-5%)": 0, "large (>5%)": 0}
     for _, a in stats["bbox_areas"]:
-        if a < 0.001: sizes["tiny (<0.1%)"] += 1
-        elif a < 0.01: sizes["small (0.1-1%)"] += 1
-        elif a < 0.05: sizes["medium (1-5%)"] += 1
-        else: sizes["large (>5%)"] += 1
+        if a < 0.001:
+            sizes["tiny (<0.1%)"] += 1
+        elif a < 0.01:
+            sizes["small (0.1-1%)"] += 1
+        elif a < 0.05:
+            sizes["medium (1-5%)"] += 1
+        else:
+            sizes["large (>5%)"] += 1
     for label, count in sizes.items():
         print(f"    {label}: {count}")
     return stats

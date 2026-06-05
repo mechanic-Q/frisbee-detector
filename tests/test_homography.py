@@ -2,7 +2,6 @@
 
 import os
 import sys
-import tempfile
 
 import numpy as np
 import pytest
@@ -155,4 +154,3 @@ def test_load_invalid_json_raises(tmp_path):
     bad_file.write_text("not json")
     with pytest.raises(ValueError):
         load_calibration(bad_file)
-

@@ -23,11 +23,9 @@ import streamlit.components.v1 as components
 from utils.homography import (
     compute_homography,
     draw_field_overlay,
-    load_calibration,
     pixel_to_world,
     save_calibration,
     warp_to_birdseye,
-    world_to_pixel,
 )
 
 st.set_page_config(page_title="Field Calibration", layout="wide")

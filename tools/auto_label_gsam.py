@@ -6,18 +6,18 @@ Usage:
 Output: YOLO format labels in data/datasets/game1080/labels_gsam/
 """
 
-import sys, os, json, time
+import argparse
+import os
+import sys
+import time
 from pathlib import Path
+
+import numpy as np
+from autodistill.detection import CaptionOntology
+from autodistill_grounded_sam import GroundedSAM
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-
-import argparse
-import cv2
-import numpy as np
-
-from autodistill_grounded_sam import GroundedSAM
-from autodistill.detection import CaptionOntology
 
 
 def nms(boxes, scores, iou_threshold=0.5):
@@ -99,7 +99,6 @@ def main():
         boxes = detections.xyxy
         scores = detections.confidence
         
-        visible_frisbee = 0
         if len(boxes) > 0:
             # NMS
             keep = nms(boxes, np.array(scores), args.iou)
@@ -120,7 +119,6 @@ def main():
                 # Save YOLO format
                 txt_path = output_dir / fpath.with_suffix(".txt").name
                 txt_path.write_text(yolo_format(cx, cy, bw, bh) + "\n")
-                visible_frisbee = 1
                 total_det += 1
         else:
             # No detection - save empty label

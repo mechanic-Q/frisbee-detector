@@ -1,8 +1,7 @@
 """Tests for _label_utils: label IO, IoU, P2 cache."""
 
-import json
-import sys
 import os
+import sys
 
 import pytest
 
@@ -15,7 +14,6 @@ from _label_utils import (
     compute_iou,
     load_p2_cache,
     save_p2_cache,
-    run_p2_inference,
     load_review_state,
     save_review_state,
     sort_frames,

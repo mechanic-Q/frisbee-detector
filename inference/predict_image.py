@@ -1,8 +1,6 @@
 from ultralytics import YOLO
 import argparse
-from pathlib import Path
 import os
-import sys
 
 
 def predict_image(model_path, image_path, conf=0.25, save_dir="runs/predict"):
