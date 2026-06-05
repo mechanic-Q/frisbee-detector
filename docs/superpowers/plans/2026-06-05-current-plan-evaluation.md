@@ -54,10 +54,9 @@ explicit commands.
 | `frisbee_det_s_v7_quick-2` | `clip_20-23min.mp4` | 2047 / 4378 | 46.8% | 0.67 | Slightly below v7 quick recall target |
 | `frisbee_det_s_v7` | `clip_20-23min.mp4` | 516 / 4378 | 11.8% | 0.12 | Production v7 artifact appears too conservative |
 
-## Recommended Next Plan Step
+## Formal Same-Command Benchmark
 
-Do not start long P2 retraining yet. First run a formal same-command benchmark
-on `videoplayback_first60s.mp4` for the candidate models:
+Completed on 2026-06-05 with the same video and confidence threshold:
 
 ```bash
 python3 inference/predict_video.py --model runs/detect/frisbee_det_p2_game_v2/weights/best.pt --video movie/videoplayback_first60s.mp4 --conf 0.35
@@ -65,5 +64,14 @@ python3 inference/predict_video.py --model runs/detect/frisbee_det_s_v7/weights/
 python3 inference/predict_video.py --model runs/detect/frisbee_det_s_v3/weights/best.pt --video movie/videoplayback_first60s.mp4 --conf 0.35
 ```
 
-If P2 remains near the artifact-derived 8.5% detection rate, the next
-superpowers step is to retrain a cleaned-label P2 model, not to merge the branch.
+| Model artifact | Frames with detections | Detection rate | Detections/frame | Saved eval dir | Interpretation |
+| --- | ---: | ---: | ---: | --- | --- |
+| `frisbee_det_p2_game_v2` | 309 / 3598 | 8.6% | 0.10 | `runs/detect/runs/eval/frisbee_det_p2_game_v2-2` | P2 v2 remains weak on the 1080p holdout |
+| `frisbee_det_s_v7` | 797 / 3598 | 22.2% | 0.27 | `runs/detect/runs/eval/frisbee_det_s_v7-4` | Better than P2 v2, still low recall |
+| `frisbee_det_s_v3` | 1217 / 3598 | 33.8% | 0.41 | `runs/detect/runs/eval/frisbee_det_s_v3-14` | Best recall of these three at `conf=0.35`, but still below earlier 720p v3 recall |
+
+## Recommended Next Plan Step
+
+P2 remains near the artifact-derived 8.5% detection rate, so the next
+superpowers step is to retrain a cleaned-label P2 model. This is a long training
+task and should not be started without explicit approval.
