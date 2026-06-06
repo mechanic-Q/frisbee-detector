@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import asdict, dataclass, field
+import os
+from dataclasses import MISSING, asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
@@ -55,7 +56,38 @@ class AnnotationTask:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "AnnotationTask":
-        return cls(**data)
+        task_fields = {task_field.name: task_field for task_field in fields(cls)}
+        missing_fields = [
+            name
+            for name, task_field in task_fields.items()
+            if task_field.default is MISSING
+            and task_field.default_factory is MISSING
+            and name not in data
+        ]
+        if missing_fields:
+            missing = ", ".join(missing_fields)
+            raise ValueError(f"Missing required AnnotationTask fields: {missing}")
+
+        filtered_data = {
+            name: value
+            for name, value in data.items()
+            if name in task_fields
+        }
+        return cls(**filtered_data)
+
+
+def normalize_source_video(source_video: str) -> str:
+    path = Path(source_video).expanduser()
+    cwd = Path.cwd().resolve(strict=False)
+
+    if path.is_absolute():
+        resolved = path.resolve(strict=False)
+        try:
+            return resolved.relative_to(cwd).as_posix()
+        except ValueError:
+            return resolved.as_posix()
+
+    return Path(os.path.normpath(str(path))).as_posix()
 
 
 def build_exclude_ranges(eval_segments: list[EvalSegment]) -> list[ExcludeRange]:
@@ -65,7 +97,7 @@ def build_exclude_ranges(eval_segments: list[EvalSegment]) -> list[ExcludeRange]
         end_sec = segment.source_end_sec + segment.buffer_sec
         ranges.append(
             ExcludeRange(
-                source_video=segment.source_video,
+                source_video=normalize_source_video(segment.source_video),
                 start_sec=start_sec,
                 end_sec=end_sec,
                 reason="eval_segment_buffer",
@@ -80,8 +112,9 @@ def is_excluded_timestamp(
     timestamp_sec: float,
     exclude_ranges: list[ExcludeRange],
 ) -> bool:
+    normalized_source_video = normalize_source_video(source_video)
     for exclude_range in exclude_ranges:
-        if exclude_range.source_video != source_video:
+        if normalize_source_video(exclude_range.source_video) != normalized_source_video:
             continue
         if exclude_range.start_sec <= timestamp_sec <= exclude_range.end_sec:
             return True
@@ -96,7 +129,8 @@ def make_task_id(
     bbox_xyxy: list[float] | None = None,
 ) -> str:
     bbox_part = "" if bbox_xyxy is None else ",".join(f"{value:.2f}" for value in bbox_xyxy)
-    raw = f"{task_type}|{source_video}|{timestamp_sec:.3f}|{frame_index}|{bbox_part}"
+    normalized_source_video = normalize_source_video(source_video)
+    raw = f"{task_type}|{normalized_source_video}|{timestamp_sec:.3f}|{frame_index}|{bbox_part}"
     digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
     return f"{task_type}_{digest}"
 
@@ -106,7 +140,7 @@ def read_tasks(task_store: str | Path) -> list[AnnotationTask]:
     if not path.exists():
         return []
     tasks: list[AnnotationTask] = []
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
         tasks.append(AnnotationTask.from_dict(json.loads(line)))
@@ -119,12 +153,12 @@ def write_tasks(task_store: str | Path, tasks: list[AnnotationTask]) -> None:
     content = "\n".join(task.to_json() for task in tasks)
     if content:
         content += "\n"
-    path.write_text(content)
+    path.write_text(content, encoding="utf-8")
 
 
 def load_project_config(config_path: str | Path) -> dict[str, Any]:
     path = Path(config_path)
-    config = yaml.safe_load(path.read_text()) or {}
+    config = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     eval_segments = [
         EvalSegment(**segment)
         for segment in config.get("eval_segments", [])
