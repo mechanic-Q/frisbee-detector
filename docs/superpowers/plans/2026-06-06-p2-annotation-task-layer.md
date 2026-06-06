@@ -1853,3 +1853,20 @@ python3 -m py_compile tools/annotation_core.py tools/generate_annotation_tasks.p
 - 下一步应由用户决定是否开始生成真实候选任务。
 
 不要自动启动长时间训练。
+
+## 执行记录：2026-06-07
+
+本阶段已完成任务 6-9，并按计划逐任务提交：
+
+- `0d35a0a feat(annotation): add shadow frame task generation`
+- `df5959b feat(annotation): add generic task reviewer`
+- `a3cb63e feat(annotation): bridge crop extractor to task store`
+
+最终验证结果：
+
+- `python3 -m pytest tests/test_annotation_core.py tests/test_generate_annotation_tasks.py tests/test_export_annotation_tasks.py tests/test_review_tasks.py -v`：36 passed。
+- `python3 -m pytest tests/ -v`：94 passed。
+- `python3 -m py_compile tools/annotation_core.py tools/generate_annotation_tasks.py tools/review_tasks.py tools/export_annotation_tasks.py`：通过，无输出。
+- `python3 tools/generate_annotation_tasks.py --project configs/annotation/p2_shadow_fp_round1.yaml --task-type bbox_review --dry-run`：输出 `Project: p2_shadow_fp_round1`、`Task store: data/annotation/p2_shadow_fp_round1/tasks.jsonl`、`Exclude ranges: 1`。
+
+未启动长时间训练，未提交 `data/`、`movie/`、`runs/`、`*.pt`、`.env`、`node_modules/`。

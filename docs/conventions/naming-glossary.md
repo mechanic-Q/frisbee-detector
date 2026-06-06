@@ -36,3 +36,23 @@
 | `frisbee` | 人工确认是飞盘 |
 | `not_frisbee` | 人工确认不是飞盘 |
 | `uncertain` | 不确定，不进入训练 |
+
+## 常用命令
+
+生成任务配置 dry-run：
+
+```bash
+python3 tools/generate_annotation_tasks.py --project configs/annotation/p2_shadow_fp_round1.yaml --task-type bbox_review --dry-run
+```
+
+启动通用 reviewer：
+
+```bash
+streamlit run tools/review_tasks.py -- --project configs/annotation/p2_shadow_fp_round1.yaml
+```
+
+导出已复核样本：
+
+```bash
+python3 tools/export_annotation_tasks.py --project configs/annotation/p2_shadow_fp_round1.yaml
+```
