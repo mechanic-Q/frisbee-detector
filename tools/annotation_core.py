@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 from dataclasses import MISSING, asdict, dataclass, field, fields
 from pathlib import Path
@@ -122,7 +123,19 @@ def is_excluded_timestamp(
 
 
 def _has_xyxy_bbox(task: AnnotationTask) -> bool:
-    return task.bbox_xyxy is not None and len(task.bbox_xyxy) == 4
+    try:
+        bbox_xyxy = task.bbox_xyxy
+        if not isinstance(bbox_xyxy, (list, tuple)):
+            return False
+        if len(bbox_xyxy) != 4:
+            return False
+        if not all(type(value) in (int, float) and math.isfinite(value) for value in bbox_xyxy):
+            return False
+
+        x1, y1, x2, y2 = bbox_xyxy
+        return x2 > x1 and y2 > y1
+    except Exception:
+        return False
 
 
 def exportable_positive_tasks(tasks: list[AnnotationTask]) -> list[AnnotationTask]:

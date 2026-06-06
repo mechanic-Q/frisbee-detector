@@ -272,6 +272,34 @@ def test_export_filters_exclude_positive_without_bbox():
     assert exportable_positive_tasks([task]) == []
 
 
+def test_export_filters_exclude_malformed_positive_bbox():
+    malformed_bboxes = [
+        [1.0, 2.0, 3.0],
+        "abcd",
+        12,
+        [1.0, 2.0, "x", 4.0],
+        [1.0, 2.0, float("nan"), 4.0],
+        [4.0, 2.0, 1.0, 6.0],
+        [1.0, 6.0, 4.0, 2.0],
+    ]
+
+    for index, bbox_xyxy in enumerate(malformed_bboxes):
+        task = AnnotationTask(
+            task_id=f"malformed_bbox_{index}",
+            task_type="frame_label",
+            source_video="movie/full.mp4",
+            timestamp_sec=465.0 + index,
+            frame_index=11600 + index,
+            sample_role="positive_candidate",
+            review_status="accepted",
+            reviewer_decision="frisbee",
+            bbox_xyxy=bbox_xyxy,
+            frame_path="assets/frame.jpg",
+        )
+
+        assert exportable_positive_tasks([task]) == []
+
+
 def test_export_filters_exclude_wrong_sample_role():
     positive_task = AnnotationTask(
         task_id="wrong_positive_role",
