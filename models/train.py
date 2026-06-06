@@ -30,6 +30,7 @@ def train_frisbee_detector(
     run_name: str | None = None,
     model_spec: str | None = None,
     cache: bool = False,
+    plots: bool = True,
 ) -> tuple[str, object]:
     """Train a YOLOv8 model. Returns (best_model_path, training_results)."""
     if resume_from and os.path.exists(resume_from):
@@ -71,6 +72,7 @@ def train_frisbee_detector(
         close_mosaic=close_mosaic,
         box=box,
         cache=cache,
+        plots=plots,
         save=True,
         save_period=10,
         device=device,
@@ -115,6 +117,7 @@ if __name__ == "__main__":
     parser.add_argument("--validate-only", action="store_true", help="Only run validation")
     parser.add_argument("--model-path", default=None, help="Model path for --validate-only")
     parser.add_argument("--cache", action="store_true", help="Cache images in RAM")
+    parser.add_argument("--no-plots", action="store_true", help="Disable Ultralytics training plots")
     parser.add_argument("--product", default=None, help="Product YAML path (auto-merges before training)")
     args = parser.parse_args()
 
@@ -148,6 +151,7 @@ if __name__ == "__main__":
             run_name=args.name,
             model_spec=args.model,
             cache=args.cache,
+            plots=not args.no_plots,
         )
         print("\nRunning validation on best model...")
         validate_model(best_path, args.data, args.imgsz)

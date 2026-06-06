@@ -127,3 +127,97 @@ P2 仍接近既有产物推导出的 8.5% 检测率，
 | `train` | 3998 | 3348 | 650 | `coco`、`coconeg`、`game1080`、`kaggle`、`negatives`、`pseudo`、`ultimateml` |
 | `val` | 474 | 411 | 63 | `coco`、`coconeg`、`kaggle`、`negatives`、`pseudo`、`ultimateml` |
 | `test` | 476 | 417 | 59 | `coco`、`coconeg`、`kaggle`、`negatives`、`pseudo`、`ultimateml` |
+
+## P2 重训实际执行
+
+2026-06-06 已按上述预检结果重建合并数据集，并启动 P2 重训。
+
+重建命令：
+
+```bash
+python3 tools/merge_datasets.py --product frisbee-data/products/v1.yaml
+python3 tools/verify_dataset.py configs/frisbee_merged.yaml
+```
+
+重建后的数据集状态：
+
+| 项目 | 结果 |
+| --- | ---: |
+| 总图片数 | 4948 |
+| 正样本 | 4176 |
+| 负样本 | 772 |
+| 负样本占比 | 15.6% |
+| `hardneg_*` 文件 | 0 |
+| `verify_dataset.py` 问题数 | 0 |
+
+重训命令：
+
+```bash
+python3 models/train.py \
+  --data configs/frisbee_merged.yaml \
+  --model yolov8s-p2.yaml \
+  --box 5 \
+  --name frisbee_det_p2_game_v3 \
+  --batch 2 \
+  --workers 2 \
+  --device 0 \
+  --no-plots
+```
+
+训练使用 `--no-plots`，因为 Ultralytics 在 `plots=True` 时会在
+`plot_training_labels()` 阶段卡住。`models/train.py` 已增加
+`--no-plots` 参数，并通过单元测试覆盖该参数会传入 `YOLO.train()`。
+
+训练产物路径：
+
+| 项目 | 路径 |
+| --- | --- |
+| 训练目录 | `runs/detect/runs/frisbee_det_p2_game_v3` |
+| 最佳权重 | `runs/detect/runs/frisbee_det_p2_game_v3/weights/best.pt` |
+| 最终权重 | `runs/detect/runs/frisbee_det_p2_game_v3/weights/last.pt` |
+
+训练跑满 100 epoch。最终 epoch 与独立 `--validate-only` 验证结果如下：
+
+| 指标来源 | Precision | Recall | mAP50 | mAP50-95 |
+| --- | ---: | ---: | ---: | ---: |
+| 训练第 100 epoch | 0.8713 | 0.7369 | 0.8241 | 0.4428 |
+| `best.pt` 独立验证 | 0.8478 | 0.7500 | 0.8252 | 0.4518 |
+
+## P2 v3 固定视频评估
+
+评估命令：
+
+```bash
+python3 inference/predict_video.py \
+  --model runs/detect/runs/frisbee_det_p2_game_v3/weights/best.pt \
+  --video movie/videoplayback_first60s.mp4 \
+  --conf 0.35
+```
+
+新增正式同命令结果：
+
+| 模型产物 | 有检测结果的帧数 | 检测率 | 总检测数 | 每帧检测数 | 保存的 eval 目录 | 解读 |
+| --- | ---: | ---: | ---: | ---: | --- | --- |
+| `frisbee_det_p2_game_v3` | 479 / 3598 | 13.3% | 487 | 0.14 | `runs/detect/runs/eval/frisbee_det_p2_game_v3` | 比 P2 v2 有提升，但仍低于 v7 与 v3 基线 |
+
+与旧基准对比：
+
+| 模型产物 | 有检测结果的帧数 | 检测率 | 每帧检测数 | 相对结论 |
+| --- | ---: | ---: | ---: | --- |
+| `frisbee_det_p2_game_v2` | 309 / 3598 | 8.6% | 0.10 | P2 v3 比它高 4.7 个百分点 |
+| `frisbee_det_p2_game_v3` | 479 / 3598 | 13.3% | 0.14 | 重训有效，但幅度不足 |
+| `frisbee_det_s_v7` | 797 / 3598 | 22.2% | 0.27 | v7 仍明显高于 P2 v3 |
+| `frisbee_det_s_v3` | 1217 / 3598 | 33.8% | 0.41 | v3 仍是该固定视频上的最高召回基线 |
+
+## 阶段反馈
+
+P2 重训的验证集指标已经明显改善，说明清理 `hardneg` 泄漏和重建数据集是正确的。
+但固定 1080p 视频检测率只从 P2 v2 的 8.6% 提升到 13.3%，仍低于 v7 的 22.2%
+和 v3 的 33.8%。因此，本阶段结论是：
+
+| 判断项 | 结论 |
+| --- | --- |
+| 数据清理方向 | 正确，`hardneg` 全帧测试视频样本应继续排除 |
+| P2 架构方向 | 有收益，但当前 P2 v3 不能直接替代默认模型 |
+| 默认模型切换 | 不建议切到 P2 v3 |
+| 下一阶段重点 | 需要分析新 P2 v3 的漏检片段，决定是继续数据补强、调低推理阈值、还是回到 v3/v7 路线 |
