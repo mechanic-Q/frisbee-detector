@@ -62,7 +62,8 @@ movie/            → test & source videos
 
 ### Annotation naming and leakage rules
 - Before adding annotation tools or public fields, read `docs/conventions/naming-glossary.md`.
-- Use `source_video`, `eval_video`, `eval_segment`, `exclude_range`, `candidate_frame`, `candidate_bbox`, `hard_negative_crop`, `reviewer_decision`, and `sample_role` consistently.
+- Use `source_video`, `eval_video`, `eval_segment`, `candidate_frame`, `candidate_bbox`, `hard_negative_crop`, `review_status`, `reviewer_decision`, and `sample_role` consistently.
+- Use `exclude_range` for one blocked source-video time interval and `exclude_ranges` for config / JSON collections of those intervals.
 - `eval_video` is evaluation-only. Training candidates must pass annotation `exclude_ranges`.
 - Do not commit generated annotation assets under `data/annotation/`.
 
