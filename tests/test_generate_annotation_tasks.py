@@ -102,3 +102,21 @@ def test_build_frame_label_task_uses_positive_candidate_role():
     assert task.sample_role == "positive_candidate"
     assert task.review_status == "pending"
     assert task.tags == ["shadow"]
+
+
+def test_append_unique_tasks_deduplicates_by_task_id(tmp_path):
+    task = build_bbox_review_task(
+        source_video="movie/full.mp4",
+        timestamp_sec=400.0,
+        frame_index=10000,
+        bbox_xyxy=[100.0, 120.0, 140.0, 160.0],
+        crop_path="assets/crop.jpg",
+        frame_path="assets/frame.jpg",
+        model_name="frisbee_det_p2_game_v3",
+        model_conf=0.77,
+    )
+    task_store = tmp_path / "tasks.jsonl"
+
+    merged = append_unique_tasks(task_store, [task, task])
+
+    assert len(merged) == 1
