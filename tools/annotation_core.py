@@ -121,12 +121,18 @@ def is_excluded_timestamp(
     return False
 
 
+def _has_xyxy_bbox(task: AnnotationTask) -> bool:
+    return task.bbox_xyxy is not None and len(task.bbox_xyxy) == 4
+
+
 def exportable_positive_tasks(tasks: list[AnnotationTask]) -> list[AnnotationTask]:
     return [
         task for task in tasks
         if task.task_type == "frame_label"
+        and task.sample_role == "positive_candidate"
         and task.review_status == "accepted"
         and task.reviewer_decision == "frisbee"
+        and _has_xyxy_bbox(task)
         and task.frame_path
     ]
 
@@ -135,6 +141,7 @@ def exportable_hard_negative_tasks(tasks: list[AnnotationTask]) -> list[Annotati
     return [
         task for task in tasks
         if task.task_type == "bbox_review"
+        and task.sample_role == "hard_negative_candidate"
         and task.review_status == "accepted"
         and task.reviewer_decision == "not_frisbee"
         and task.crop_path

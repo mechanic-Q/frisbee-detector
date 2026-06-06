@@ -220,6 +220,7 @@ def test_export_filters_exclude_uncertain_tasks():
             sample_role="positive_candidate",
             review_status="accepted",
             reviewer_decision="frisbee",
+            bbox_xyxy=[100.0, 120.0, 140.0, 160.0],
             frame_path="assets/frame.jpg",
         ),
         AnnotationTask(
@@ -253,6 +254,51 @@ def test_export_filters_include_not_frisbee_hard_negatives():
     )
 
     assert exportable_hard_negative_tasks([task]) == [task]
+
+
+def test_export_filters_exclude_positive_without_bbox():
+    task = AnnotationTask(
+        task_id="positive_without_bbox",
+        task_type="frame_label",
+        source_video="movie/full.mp4",
+        timestamp_sec=460.0,
+        frame_index=11500,
+        sample_role="positive_candidate",
+        review_status="accepted",
+        reviewer_decision="frisbee",
+        frame_path="assets/frame.jpg",
+    )
+
+    assert exportable_positive_tasks([task]) == []
+
+
+def test_export_filters_exclude_wrong_sample_role():
+    positive_task = AnnotationTask(
+        task_id="wrong_positive_role",
+        task_type="frame_label",
+        source_video="movie/full.mp4",
+        timestamp_sec=470.0,
+        frame_index=11750,
+        sample_role="quality_check",
+        review_status="accepted",
+        reviewer_decision="frisbee",
+        bbox_xyxy=[100.0, 120.0, 140.0, 160.0],
+        frame_path="assets/frame.jpg",
+    )
+    hard_negative_task = AnnotationTask(
+        task_id="wrong_hard_negative_role",
+        task_type="bbox_review",
+        source_video="movie/full.mp4",
+        timestamp_sec=480.0,
+        frame_index=12000,
+        sample_role="quality_check",
+        review_status="accepted",
+        reviewer_decision="not_frisbee",
+        crop_path="assets/crop.jpg",
+    )
+
+    assert exportable_positive_tasks([positive_task]) == []
+    assert exportable_hard_negative_tasks([hard_negative_task]) == []
 
 
 def test_assert_tasks_not_leaking_raises_for_excluded_task():
