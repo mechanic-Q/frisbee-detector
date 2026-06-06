@@ -60,6 +60,12 @@ movie/            → test & source videos
 
 ## Critical gotchas
 
+### Annotation naming and leakage rules
+- Before adding annotation tools or public fields, read `docs/conventions/naming-glossary.md`.
+- Use `source_video`, `eval_video`, `eval_segment`, `exclude_range`, `candidate_frame`, `candidate_bbox`, `hard_negative_crop`, `reviewer_decision`, and `sample_role` consistently.
+- `eval_video` is evaluation-only. Training candidates must pass annotation `exclude_ranges`.
+- Do not commit generated annotation assets under `data/annotation/`.
+
 ### Training constraints
 - **RTX 5080 16GB**: batch=2 max, workers=2 (batch=4 OOMs during validation, batch=8 OOMs immediately)
 - YOLO training **must run in tmux** — Bash tool has 10-min timeout, training takes 1-3h
