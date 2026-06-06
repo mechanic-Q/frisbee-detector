@@ -121,6 +121,48 @@ def test_xyxy_to_yolo_label_rejects_out_of_bounds_bbox():
         xyxy_to_yolo_label([10.0, 20.0, 30.0, 20.0], (100, 100))
 
 
+@pytest.mark.parametrize(
+    ("image_size", "bbox_xyxy", "error_match"),
+    [
+        ((0, 100), [10.0, 20.0, 30.0, 40.0], "image size"),
+        ((100, 100), [10.0, 20.0, 101.0, 40.0], "bbox invalid"),
+    ],
+)
+def test_export_reviewed_tasks_preflights_positive_labels_before_writes(
+    tmp_path,
+    image_size,
+    bbox_xyxy,
+    error_match,
+):
+    frame = tmp_path / "frame.jpg"
+    frame.write_bytes(b"frame")
+    task_store = tmp_path / "tasks.jsonl"
+    export_dir = tmp_path / "export"
+    write_tasks(
+        task_store,
+        [
+            AnnotationTask(
+                task_id="positive",
+                task_type="frame_label",
+                source_video="movie/full.mp4",
+                timestamp_sec=400.0,
+                frame_index=10000,
+                sample_role="positive_candidate",
+                review_status="accepted",
+                reviewer_decision="frisbee",
+                frame_path=str(frame),
+                bbox_xyxy=bbox_xyxy,
+            )
+        ],
+    )
+
+    with pytest.raises(ValueError, match=error_match):
+        export_reviewed_tasks(task_store, export_dir, [], image_size=image_size)
+
+    assert not (export_dir / "images" / "positive" / "positive.jpg").exists()
+    assert not export_dir.exists() or list(export_dir.iterdir()) == []
+
+
 def test_export_reviewed_tasks_rejects_non_empty_export_dir(tmp_path):
     frame = tmp_path / "frame.jpg"
     frame.write_bytes(b"frame")

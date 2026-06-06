@@ -67,6 +67,12 @@ def export_reviewed_tasks(
         raise ValueError(f"export_dir {export_path} not empty")
     _assert_unique_task_ids(export_tasks)
 
+    positive_exports: list[tuple[AnnotationTask, str]] = []
+    for task in positives:
+        if not task.bbox_xyxy:
+            continue
+        positive_exports.append((task, xyxy_to_yolo_label(task.bbox_xyxy, image_size)))
+
     positive_images = export_path / "images" / "positive"
     positive_labels = export_path / "labels" / "positive"
     hardneg_images = export_path / "images" / "hard_negative"
@@ -75,12 +81,10 @@ def export_reviewed_tasks(
         directory.mkdir(parents=True, exist_ok=True)
 
     positive_count = 0
-    for task in positives:
-        if not task.bbox_xyxy:
-            continue
+    for task, label_text in positive_exports:
         shutil.copy2(task.frame_path, positive_images / f"{task.task_id}.jpg")
         (positive_labels / f"{task.task_id}.txt").write_text(
-            xyxy_to_yolo_label(task.bbox_xyxy, image_size),
+            label_text,
             encoding="utf-8",
         )
         positive_count += 1
