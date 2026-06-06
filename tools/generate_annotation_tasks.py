@@ -67,6 +67,43 @@ def append_unique_tasks(task_store: str | Path, new_tasks: list[AnnotationTask])
     return merged_tasks
 
 
+def compute_shadow_score(pixel_rows) -> float:
+    brightness_values: list[float] = []
+    for row in pixel_rows:
+        for pixel in row:
+            if len(pixel) >= 3:
+                brightness_values.append((float(pixel[0]) + float(pixel[1]) + float(pixel[2])) / 3.0)
+    if not brightness_values:
+        return 0.0
+
+    mean_brightness = sum(brightness_values) / len(brightness_values)
+    return max(0.0, min(1.0, 1.0 - mean_brightness / 255.0))
+
+
+def build_frame_label_task(
+    source_video: str,
+    timestamp_sec: float,
+    frame_index: int,
+    frame_path: str,
+    model_name: str,
+    tags: list[str] | None = None,
+) -> AnnotationTask:
+    task_id = make_task_id("frame_label", source_video, timestamp_sec, frame_index, None)
+    return AnnotationTask(
+        task_id=task_id,
+        task_type="frame_label",
+        source_video=source_video,
+        timestamp_sec=timestamp_sec,
+        frame_index=frame_index,
+        sample_role="positive_candidate",
+        review_status="pending",
+        reviewer_decision="",
+        frame_path=frame_path,
+        model_name=model_name,
+        tags=tags or [],
+    )
+
+
 def generate_bbox_review_tasks(
     project_config: dict,
     max_tasks: int,
@@ -161,12 +198,75 @@ def generate_bbox_review_tasks(
     return tasks
 
 
+def generate_frame_label_tasks(
+    project_config: dict,
+    max_tasks: int,
+    frame_stride: int,
+    shadow_threshold: float = 0.55,
+) -> list[AnnotationTask]:
+    import cv2
+
+    if max_tasks < 0:
+        raise ValueError("max_tasks must be non-negative")
+    if frame_stride <= 0:
+        raise ValueError("frame_stride must be positive")
+
+    model_config = project_config["models"]["candidate_model"]
+    source_video = project_config["source_videos"][0]["source_video"]
+    outputs = project_config["outputs"]
+    frame_dir = Path(outputs["asset_dir"]) / "shadow_frames"
+    frame_dir.mkdir(parents=True, exist_ok=True)
+
+    cap = cv2.VideoCapture(source_video)
+    if not cap.isOpened():
+        raise RuntimeError(f"Cannot open source_video: {source_video}")
+
+    fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
+    frame_index = 0
+    tasks: list[AnnotationTask] = []
+
+    try:
+        while len(tasks) < max_tasks:
+            ok, frame = cap.read()
+            if not ok:
+                break
+            frame_index += 1
+            if frame_index % frame_stride != 0:
+                continue
+
+            timestamp_sec = frame_index / fps
+            if not should_keep_candidate(source_video, timestamp_sec, project_config["exclude_ranges"]):
+                continue
+
+            shadow_score = compute_shadow_score(frame.tolist())
+            if shadow_score < shadow_threshold:
+                continue
+
+            frame_path = frame_dir / f"shadow_f{frame_index:06d}.jpg"
+            cv2.imwrite(str(frame_path), frame, [cv2.IMWRITE_JPEG_QUALITY, 90])
+            tasks.append(
+                build_frame_label_task(
+                    source_video=source_video,
+                    timestamp_sec=timestamp_sec,
+                    frame_index=frame_index,
+                    frame_path=str(frame_path),
+                    model_name=model_config["model_name"],
+                    tags=["shadow"],
+                )
+            )
+    finally:
+        cap.release()
+
+    return tasks
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate annotation task candidates")
     parser.add_argument("--project", required=True, help="Annotation project YAML")
-    parser.add_argument("--task-type", choices=["bbox_review"], required=True)
+    parser.add_argument("--task-type", choices=["bbox_review", "frame_label"], required=True)
     parser.add_argument("--max-tasks", type=int, default=150)
     parser.add_argument("--frame-stride", type=int, default=5)
+    parser.add_argument("--shadow-threshold", type=float, default=0.55)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -178,11 +278,19 @@ def main() -> int:
         print(f"Exclude ranges: {len(config['exclude_ranges'])}")
         return 0
 
-    generated_tasks = generate_bbox_review_tasks(
-        project_config=config,
-        max_tasks=args.max_tasks,
-        frame_stride=args.frame_stride,
-    )
+    if args.task_type == "bbox_review":
+        generated_tasks = generate_bbox_review_tasks(
+            project_config=config,
+            max_tasks=args.max_tasks,
+            frame_stride=args.frame_stride,
+        )
+    else:
+        generated_tasks = generate_frame_label_tasks(
+            project_config=config,
+            max_tasks=args.max_tasks,
+            frame_stride=args.frame_stride,
+            shadow_threshold=args.shadow_threshold,
+        )
     merged_tasks = append_unique_tasks(outputs["task_store"], generated_tasks)
     print(f"Generated tasks: {len(generated_tasks)}")
     print(f"Task store: {outputs['task_store']}")

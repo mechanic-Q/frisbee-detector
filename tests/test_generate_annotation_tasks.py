@@ -9,6 +9,8 @@ from tools.annotation_core import ExcludeRange, write_tasks
 from tools.generate_annotation_tasks import (
     append_unique_tasks,
     build_bbox_review_task,
+    build_frame_label_task,
+    compute_shadow_score,
     should_keep_candidate,
 )
 
@@ -77,3 +79,26 @@ def test_append_unique_tasks_preserves_existing_task(tmp_path):
 
     assert len(merged) == 1
     assert merged[0].crop_path == "old_crop.jpg"
+
+
+def test_compute_shadow_score_is_higher_for_dark_patch():
+    dark_patch = [[[20, 20, 20], [25, 25, 25]]]
+    bright_patch = [[[220, 220, 220], [230, 230, 230]]]
+
+    assert compute_shadow_score(dark_patch) > compute_shadow_score(bright_patch)
+
+
+def test_build_frame_label_task_uses_positive_candidate_role():
+    task = build_frame_label_task(
+        source_video="movie/full.mp4",
+        timestamp_sec=500.0,
+        frame_index=12500,
+        frame_path="data/annotation/assets/frame.jpg",
+        model_name="frisbee_det_p2_game_v3",
+        tags=["shadow"],
+    )
+
+    assert task.task_type == "frame_label"
+    assert task.sample_role == "positive_candidate"
+    assert task.review_status == "pending"
+    assert task.tags == ["shadow"]
