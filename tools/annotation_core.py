@@ -121,6 +121,40 @@ def is_excluded_timestamp(
     return False
 
 
+def exportable_positive_tasks(tasks: list[AnnotationTask]) -> list[AnnotationTask]:
+    return [
+        task for task in tasks
+        if task.task_type == "frame_label"
+        and task.review_status == "accepted"
+        and task.reviewer_decision == "frisbee"
+        and task.frame_path
+    ]
+
+
+def exportable_hard_negative_tasks(tasks: list[AnnotationTask]) -> list[AnnotationTask]:
+    return [
+        task for task in tasks
+        if task.task_type == "bbox_review"
+        and task.review_status == "accepted"
+        and task.reviewer_decision == "not_frisbee"
+        and task.crop_path
+    ]
+
+
+def assert_tasks_not_leaking(
+    tasks: list[AnnotationTask],
+    exclude_ranges: list[ExcludeRange],
+) -> None:
+    leaking = [
+        task.task_id
+        for task in tasks
+        if is_excluded_timestamp(task.source_video, task.timestamp_sec, exclude_ranges)
+    ]
+    if leaking:
+        joined = ", ".join(leaking[:10])
+        raise ValueError(f"Tasks overlap excluded eval ranges: {joined}")
+
+
 def make_task_id(
     task_type: str,
     source_video: str,

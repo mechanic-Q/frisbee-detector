@@ -13,7 +13,10 @@ from tools.annotation_core import (
     AnnotationTask,
     EvalSegment,
     ExcludeRange,
+    assert_tasks_not_leaking,
     build_exclude_ranges,
+    exportable_hard_negative_tasks,
+    exportable_positive_tasks,
     is_excluded_timestamp,
     load_project_config,
     make_task_id,
@@ -204,3 +207,72 @@ def test_read_tasks_missing_and_empty_files_return_empty(tmp_path):
 
     assert read_tasks(missing_path) == []
     assert read_tasks(empty_path) == []
+
+
+def test_export_filters_exclude_uncertain_tasks():
+    tasks = [
+        AnnotationTask(
+            task_id="positive",
+            task_type="frame_label",
+            source_video="movie/full.mp4",
+            timestamp_sec=400.0,
+            frame_index=10000,
+            sample_role="positive_candidate",
+            review_status="accepted",
+            reviewer_decision="frisbee",
+            frame_path="assets/frame.jpg",
+        ),
+        AnnotationTask(
+            task_id="uncertain",
+            task_type="bbox_review",
+            source_video="movie/full.mp4",
+            timestamp_sec=401.0,
+            frame_index=10025,
+            sample_role="hard_negative_candidate",
+            review_status="accepted",
+            reviewer_decision="uncertain",
+            crop_path="assets/crop.jpg",
+        ),
+    ]
+
+    assert [task.task_id for task in exportable_positive_tasks(tasks)] == ["positive"]
+    assert exportable_hard_negative_tasks(tasks) == []
+
+
+def test_export_filters_include_not_frisbee_hard_negatives():
+    task = AnnotationTask(
+        task_id="hardneg",
+        task_type="bbox_review",
+        source_video="movie/full.mp4",
+        timestamp_sec=450.0,
+        frame_index=11250,
+        sample_role="hard_negative_candidate",
+        review_status="accepted",
+        reviewer_decision="not_frisbee",
+        crop_path="assets/crop.jpg",
+    )
+
+    assert exportable_hard_negative_tasks([task]) == [task]
+
+
+def test_assert_tasks_not_leaking_raises_for_excluded_task():
+    task = AnnotationTask(
+        task_id="leak",
+        task_type="frame_label",
+        source_video="movie/full.mp4",
+        timestamp_sec=30.0,
+        frame_index=750,
+        sample_role="positive_candidate",
+    )
+    ranges = [
+        ExcludeRange(
+            source_video="movie/full.mp4",
+            start_sec=0.0,
+            end_sec=300.0,
+            reason="eval_segment_buffer",
+            eval_segment_id="first60s",
+        )
+    ]
+
+    with pytest.raises(ValueError, match="leak"):
+        assert_tasks_not_leaking([task], ranges)
