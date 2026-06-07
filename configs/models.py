@@ -16,7 +16,8 @@ V3_MODEL = RUNS_DIR / "frisbee_det_s_v3" / "weights" / "best.pt"
 # v7 model (unified pool 5150 images, box=5, 18.9% bg)
 V7_MODEL = RUNS_DIR / "frisbee_det_s_v7" / "weights" / "best.pt"
 
-DEFAULT_MODEL = V7_MODEL
+SHADOW_V1_MODEL = RUNS_DIR / "frisbee_det_p2_shadow_v1" / "weights" / "best.pt"
+DEFAULT_MODEL = SHADOW_V1_MODEL
 DEFAULT_MODEL_SIZE = "s"
 DEFAULT_IMGSZ = 1280
 DEFAULT_CONF = 0.35
