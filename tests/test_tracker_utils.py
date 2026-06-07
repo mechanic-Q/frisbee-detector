@@ -7,7 +7,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils.tracker_utils import init_kalman, score_candidates, Trajectory
+from utils.tracker_utils import init_kalman, score_candidates, Trajectory, mahalanobis_gate, GATE_THRESHOLD
 
 
 def test_kalman_init_state():
@@ -57,37 +57,40 @@ def test_score_prioritizes_confidence():
         {"box": [100, 200, 120, 230], "conf": 0.9},
         {"box": [300, 400, 320, 420], "conf": 0.3},
     ]
-    best = score_candidates(cands, None, None)
+    best = score_candidates(None, cands, None, None)
     assert best == 0, "should pick higher confidence"
 
 
 def test_score_uses_motion():
+    kf = init_kalman()
     traj = Trajectory()
     traj.push(100, 100, 200)
     cands = [
         {"box": [105, 105, 125, 125], "conf": 0.5},
         {"box": [500, 500, 520, 520], "conf": 0.9},
     ]
-    best = score_candidates(cands, traj, traj.last_position())
+    best = score_candidates(kf, cands, traj, traj.last_position())
     assert best == 0, "should pick motion-consistent even with lower conf"
 
 
 def test_aspect_score_favors_wide_boxes():
+    kf = init_kalman()
     traj = Trajectory()
     traj.push(100, 100, 200)
     tall_box = {"box": [100, 100, 110, 140], "conf": 0.5}
     wide_box = {"box": [100, 100, 120, 120], "conf": 0.5}
     cands = [tall_box, wide_box]
-    best = score_candidates(cands, traj, (105, 105))
+    best = score_candidates(kf, cands, traj, (105, 105))
     assert best == 1, "wide (square-like) box should win over tall box"
 
 
 def test_score_empty_candidates():
-    best = score_candidates([], None, None)
+    best = score_candidates(None, [], None, None)
     assert best == -1, "empty candidates should return -1"
 
 
 def test_speed_score_favors_moving_boxes():
+    kf = init_kalman()
     traj = Trajectory()
     traj.push(100, 100, 200)
     traj.push(102, 102, 200)
@@ -95,18 +98,46 @@ def test_speed_score_favors_moving_boxes():
     static = {"box": [100, 100, 120, 120], "conf": 0.5}
     moving = {"box": [110, 110, 130, 130], "conf": 0.5}
     cands = [static, moving]
-    best = score_candidates(cands, traj, traj.last_position())
+    best = score_candidates(kf, cands, traj, traj.last_position())
     assert best == 1, "moving candidate should score higher than static"
 
 
 def test_stationary_loses_to_moving():
-    """Tall stationary box vs square moving box: aspect + speed should overcome motion."""
+    """Both pass gate; frisbee wins via conf + area + aspect."""
+    kf = init_kalman()
     traj = Trajectory()
     traj.push(100, 100, 200)
-    traj.push(101, 101, 200)
+    traj.push(110, 110, 200)
+    traj.push(120, 120, 200)
+    prediction = (121, 121)
+    # Tall FP near prediction but low conf, bad aspect ratio
+    fp = {"box": [119, 119, 130, 140], "conf": 0.4}
+    # Square frisbee slightly farther, high conf, area ≈ 200, aspect 1.0
+    frisbee = {"box": [127, 124, 138, 142], "conf": 0.8}
+    cands = [fp, frisbee]
+    best = score_candidates(kf, cands, traj, prediction)
+    assert best == 1, "frisbee wins via conf + aspect + area consistency"
+
+
+def test_mahalanobis_gate_rejects_fp():
+    """Outlier 200px from prediction loses to close candidate."""
+    kf = init_kalman()
+    traj = Trajectory()
+    traj.push(100, 100, 200)
     traj.push(102, 102, 200)
-    stationary = {"box": [100, 100, 110, 140], "conf": 0.5}    # tall box (person/hat)
-    moving = {"box": [115, 115, 135, 135], "conf": 0.5}        # square box (frisbee-like)
-    cands = [stationary, moving]
-    best = score_candidates(cands, traj, (105, 105))
-    assert best == 1, "moving square box should beat tall stationary box"
+    good = {"box": [105, 105, 125, 125], "conf": 0.5}
+    outlier = {"box": [300, 300, 320, 320], "conf": 0.9}
+    cands = [good, outlier]
+    best = score_candidates(kf, cands, traj, traj.last_position())
+    assert best == 0, "outlier rejected by Mahalanobis gate"
+
+
+def test_mahalanobis_gate_accepts_valid():
+    """Valid candidate within gate wins over empty."""
+    kf = init_kalman()
+    traj = Trajectory()
+    traj.push(100, 100, 200)
+    good = {"box": [105, 105, 125, 125], "conf": 0.8}
+    cands = [good]
+    best = score_candidates(kf, cands, traj, traj.last_position())
+    assert best == 0, "valid candidate within gate should be accepted"
