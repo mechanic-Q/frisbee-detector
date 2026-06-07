@@ -19,10 +19,12 @@ jobs:
           pip install ruff pytest
       - name: Lint
         run: ruff check . --ignore E501
+      - name: Run tests
+        run: pytest tests/ -v
       - name: Import test
         run: |
           python -c "from ultralytics import YOLO; print('YOLO import OK')"
           python -c "import cv2; print('OpenCV import OK')"
           python -c "import yaml; print('YAML import OK')"
-      - name: Dataset verification (if available)
-        run: python tools/verify_dataset.py frisbee.yaml || echo "Dataset not available in CI, skipping"
+      - name: Config & paths test
+        run: python -c "from configs.paths import PROJECT_ROOT; print(f'Project root: {PROJECT_ROOT}')"

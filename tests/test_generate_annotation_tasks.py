@@ -120,3 +120,62 @@ def test_append_unique_tasks_deduplicates_by_task_id(tmp_path):
     merged = append_unique_tasks(task_store, [task, task])
 
     assert len(merged) == 1
+
+def test_build_frame_label_task_can_carry_candidate_bbox_and_crop():
+    task = build_frame_label_task(
+        source_video="movie/full.mp4",
+        timestamp_sec=500.0,
+        frame_index=12500,
+        frame_path="data/annotation/assets/frame.jpg",
+        model_name="frisbee_det_p2_game_v3",
+        tags=["shadow", "low_conf_model", "vlm_verified"],
+        bbox_xyxy=[100.0, 120.0, 140.0, 160.0],
+        crop_path="data/annotation/assets/shadow_crops/crop.jpg",
+        model_conf=0.08,
+    )
+
+    assert task.task_type == "frame_label"
+    assert task.sample_role == "positive_candidate"
+    assert task.bbox_xyxy == [100.0, 120.0, 140.0, 160.0]
+    assert task.crop_path.endswith("crop.jpg")
+    assert task.model_conf == 0.08
+    assert "low_conf_model" in task.tags
+
+
+def test_keep_temporally_spaced_tasks_drops_dense_frame_runs():
+    from tools.generate_annotation_tasks import keep_temporally_spaced_tasks
+
+    tasks = [
+        build_frame_label_task("movie/full.mp4", 10.0, 100, "f100.jpg", "m", bbox_xyxy=[1, 1, 2, 2], model_conf=0.04),
+        build_frame_label_task("movie/full.mp4", 10.2, 105, "f105.jpg", "m", bbox_xyxy=[1, 1, 2, 2], model_conf=0.10),
+        build_frame_label_task("movie/full.mp4", 11.4, 130, "f130.jpg", "m", bbox_xyxy=[1, 1, 2, 2], model_conf=0.05),
+        build_frame_label_task("movie/full.mp4", 20.0, 500, "f500.jpg", "m", bbox_xyxy=[1, 1, 2, 2], model_conf=0.03),
+    ]
+
+    kept = keep_temporally_spaced_tasks(tasks, min_frame_gap=25)
+
+    assert [task.frame_index for task in kept] == [105, 130, 500]
+
+
+def test_should_process_frame_index_respects_optional_window():
+    from tools.generate_annotation_tasks import should_process_frame_index
+
+    assert should_process_frame_index(100, start_frame=0, end_frame=0)
+    assert not should_process_frame_index(99, start_frame=100, end_frame=0)
+    assert should_process_frame_index(100, start_frame=100, end_frame=0)
+    assert should_process_frame_index(200, start_frame=100, end_frame=200)
+    assert not should_process_frame_index(201, start_frame=100, end_frame=200)
+
+
+def test_keep_temporally_spaced_tasks_keeps_one_per_frame_window_not_one_per_chain():
+    from tools.generate_annotation_tasks import keep_temporally_spaced_tasks
+
+    tasks = [
+        build_frame_label_task("movie/full.mp4", frame / 25, frame, f"f{frame}.jpg", "m", bbox_xyxy=[1, 1, 2, 2], model_conf=0.01)
+        for frame in range(0, 1000, 5)
+    ]
+
+    kept = keep_temporally_spaced_tasks(tasks, min_frame_gap=250)
+
+    assert len(kept) == 4
+    assert [task.frame_index for task in kept] == [0, 250, 500, 750]

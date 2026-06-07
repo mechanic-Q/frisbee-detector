@@ -56,3 +56,29 @@ streamlit run tools/review_tasks.py -- --project configs/annotation/p2_shadow_fp
 ```bash
 python3 tools/export_annotation_tasks.py --project configs/annotation/p2_shadow_fp_round1.yaml
 ```
+
+
+## P2 阴影候选生成流程
+
+阴影漏检候选必须先用低阈值 YOLO 产出 `candidate_bbox`，再做时间去重，最后用 VLM 复核红框内对象。禁止先对大量暗帧逐帧调用 VLM，因为视频中阴影帧很多，会导致成本和耗时不可控。
+
+标准顺序：
+
+1. `shadow_score >= threshold` 粗筛暗帧。
+2. `candidate_conf` 低阈值 YOLO 生成 `candidate_bbox`。
+3. `temporal_dedupe_frames` 去连续帧，每段保留最高 `model_conf` 候选。
+4. VLM 只判断红框内对象是否为 frisbee。
+5. 只保留带 `bbox_xyxy` 的 `frame_label`，否则不能导出 YOLO 正样本。
+
+推荐命令：
+
+```bash
+python3 tools/generate_annotation_tasks.py   --project configs/annotation/p2_shadow_fp_round1.yaml   --task-type frame_label   --max-tasks 150   --frame-stride 5   --shadow-threshold 0.55   --candidate-conf 0.03   --temporal-dedupe-frames 250   --use-vlm
+```
+
+
+长视频追加后段候选时使用 `--start-frame`，例如：
+
+```bash
+python3 tools/generate_annotation_tasks.py   --project configs/annotation/p2_shadow_fp_round1.yaml   --task-type frame_label   --max-tasks 100   --frame-stride 5   --shadow-threshold 0.55   --candidate-conf 0.03   --temporal-dedupe-frames 250   --start-frame 30000   --use-vlm
+```
