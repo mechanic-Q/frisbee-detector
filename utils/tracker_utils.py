@@ -33,8 +33,8 @@ def init_kalman() -> cv2.KalmanFilter:
         [0, 0, 1, 0],
         [0, 0, 0, 1],
     ], dtype=np.float32)
-    kf.processNoiseCov = np.eye(4, dtype=np.float32) * 0.003
-    kf.measurementNoiseCov = np.eye(2, dtype=np.float32) * 0.1
+    kf.processNoiseCov = np.eye(4, dtype=np.float32) * 0.01
+    kf.measurementNoiseCov = np.eye(2, dtype=np.float32) * 1.0
     kf.errorCovPost = np.eye(4, dtype=np.float32) * 100.0
     return kf
 
