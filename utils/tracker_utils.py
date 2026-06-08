@@ -37,7 +37,7 @@ def init_kalman() -> cv2.KalmanFilter:
 
 H = np.array([[1, 0, 0, 0], [0, 1, 0, 0]], dtype=np.float32)
 
-GATE_THRESHOLD = 13.8155  # chi²_{0.999}(df=2) — only reject extreme outliers
+GATE_THRESHOLD = 500.0   # catch only extreme outliers   # empirically safe for 60fps frisbee motion  # chi²_{0.999}(df=2) — only reject extreme outliers
 
 
 def mahalanobis_gate(
