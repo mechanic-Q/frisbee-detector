@@ -186,6 +186,12 @@ def main():
                 bw = bx[2] - bx[0]
                 bh = bx[3] - bx[1]
                 area = bw * bh
+                # Mahalanobis post-gating: reject FP before Kalman update
+                if is_tracking:
+                    d2 = mahalanobis_gate(kf, (float(prediction[0, 0]), float(prediction[1, 0])), (cx, cy))
+                    if d2 > GATE_THRESHOLD:
+                        continue
+
                 meas = np.array([[cx], [cy]], dtype=np.float32)
                 kf.correct(meas)
                 status = "tracking"
