@@ -20,7 +20,7 @@ from ultralytics import YOLO
 
 from configs.models import V3_MODEL, DEFAULT_CONF
 from utils.homography import load_calibration, pixel_to_world
-from utils.tracker_utils import init_kalman, score_candidates, Trajectory
+from utils.tracker_utils import init_kalman, score_candidates, Trajectory, mahalanobis_gate, GATE_THRESHOLD
 
 LOST_TRACK_THRESHOLD = 15  # frames
 STATIONARY_CHECK_INTERVAL = 5
@@ -186,11 +186,17 @@ def main():
                 bw = bx[2] - bx[0]
                 bh = bx[3] - bx[1]
                 area = bw * bh
-                # Mahalanobis post-gating: reject FP before Kalman update
-                if is_tracking:
-                    d2 = mahalanobis_gate(kf, (float(prediction[0, 0]), float(prediction[1, 0])), (cx, cy))
-                    if d2 > GATE_THRESHOLD:
-                        continue
+                # Mahalanobis d2 log (no gating, for data collection)
+                mahalanobis_d2 = None
+                if len(trajectory._pts) >= 3:
+                    try:
+                        mahalanobis_d2 = round(mahalanobis_gate(
+                            kf,
+                            (float(prediction[0, 0]), float(prediction[1, 0])),
+                            (cx, cy),
+                        ), 1)
+                    except np.linalg.LinAlgError:
+                        pass
 
                 meas = np.array([[cx], [cy]], dtype=np.float32)
                 kf.correct(meas)
@@ -205,7 +211,7 @@ def main():
                     "frame": frame_idx, "px": round(cx, 1), "py": round(cy, 1),
                     "vx": round(vx, 2), "vy": round(vy, 2),
                     "conf": round(float(best["conf"]), 4), "status": status,
-                    "wx": None, "wy": None,
+                    "wx": None, "wy": None, "mahalanobis_d2": mahalanobis_d2,
                 }
                 if matrix is not None:
                     try:
@@ -254,7 +260,7 @@ def main():
 
     if all_rows:
         csv_path = output_dir / f"{video_path.stem}_tracks.csv"
-        fieldnames = ["frame", "px", "py", "vx", "vy", "conf", "status", "wx", "wy"]
+        fieldnames = ["frame", "px", "py", "vx", "vy", "conf", "status", "wx", "wy", "mahalanobis_d2"]
         with open(csv_path, "w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
