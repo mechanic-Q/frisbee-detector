@@ -34,6 +34,26 @@ def init_kalman() -> cv2.KalmanFilter:
     return kf
 
 
+
+H = np.array([[1, 0, 0, 0], [0, 1, 0, 0]], dtype=np.float32)
+
+GATE_THRESHOLD = 13.8155  # chi²_{0.999}(df=2) — only reject extreme outliers
+
+
+def mahalanobis_gate(
+    kf: cv2.KalmanFilter,
+    prediction: tuple[float, float],
+    measurement: tuple[float, float],
+) -> float:
+    innov = np.array([
+        [measurement[0] - prediction[0]],
+        [measurement[1] - prediction[1]],
+    ], dtype=np.float32)
+    P = kf.errorCovPost
+    S = H @ P @ H.T + kf.measurementNoiseCov
+    S_inv = np.linalg.inv(S)
+    return float((innov.T @ S_inv @ innov)[0, 0])
+
 def score_candidates(
     candidates: list[dict],
     trajectory: 'Trajectory | None',
