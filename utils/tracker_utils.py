@@ -19,23 +19,29 @@ MIN_SCORE = 0.3  # minimum score to accept any candidate
 
 
 def init_kalman() -> cv2.KalmanFilter:
-    """Create a 4-state Kalman filter for position + velocity tracking."""
-    kf = cv2.KalmanFilter(4, 2)
-    kf.measurementMatrix = np.array([[1, 0, 0, 0], [0, 1, 0, 0]], dtype=np.float32)
-    kf.transitionMatrix = np.array([
-        [1, 0, 1, 0],
-        [0, 1, 0, 1],
-        [0, 0, 1, 0],
-        [0, 0, 0, 1],
+    """Create a 6-state Kalman filter (px,py,vx,vy,ax,ay) for position+velocity+acceleration tracking."""
+    kf = cv2.KalmanFilter(6, 2)
+    dt = 1.0
+    kf.measurementMatrix = np.array([
+        [1, 0, 0, 0, 0, 0],
+        [0, 1, 0, 0, 0, 0],
     ], dtype=np.float32)
-    kf.processNoiseCov = np.eye(4, dtype=np.float32) * 0.003
+    kf.transitionMatrix = np.array([
+        [1, 0, dt, 0, 0.5*dt*dt, 0],
+        [0, 1, 0, dt, 0, 0.5*dt*dt],
+        [0, 0, 1, 0, dt, 0],
+        [0, 0, 0, 1, 0, dt],
+        [0, 0, 0, 0, 1, 0],
+        [0, 0, 0, 0, 0, 1],
+    ], dtype=np.float32)
+    kf.processNoiseCov = np.eye(6, dtype=np.float32) * 0.1
     kf.measurementNoiseCov = np.eye(2, dtype=np.float32) * 0.1
-    kf.errorCovPost = np.eye(4, dtype=np.float32) * 100.0
+    kf.errorCovPost = np.eye(6, dtype=np.float32) * 100.0
     return kf
 
 
 
-H = np.array([[1, 0, 0, 0], [0, 1, 0, 0]], dtype=np.float32)
+H = np.array([[1, 0, 0, 0, 0, 0], [0, 1, 0, 0, 0, 0]], dtype=np.float32)
 
 GATE_THRESHOLD = 500.0   # catch only extreme outliers   # empirically safe for 60fps frisbee motion  # chi²_{0.999}(df=2) — only reject extreme outliers
 

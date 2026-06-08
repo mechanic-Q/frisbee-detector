@@ -13,7 +13,7 @@ from utils.tracker_utils import init_kalman, score_candidates, Trajectory
 def test_kalman_init_state():
     kf = init_kalman()
     state = kf.statePost  # (4, 1) after init
-    assert state.shape == (4, 1), f"Expected (4, 1), got {state.shape}"
+    assert state.shape == (6, 1), f"Expected (4, 1), got {state.shape}"
 
 
 def test_kalman_predict_update():
