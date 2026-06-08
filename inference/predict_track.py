@@ -177,7 +177,7 @@ def main():
             prediction = kf.predict()
             is_tracking = status == "tracking"
             pred_pt = (float(prediction[0, 0]), float(prediction[1, 0])) if is_tracking else None
-            best_idx = score_candidates(kf, candidates, trajectory if is_tracking else None, pred_pt)
+            best_idx = score_candidates(candidates, trajectory if is_tracking else None, pred_pt)
             if best_idx >= 0:
                 best = candidates[best_idx]
                 bx = best["box"]

@@ -7,7 +7,6 @@ Functions:
 """
 
 from collections import deque
-from typing import Optional
 
 import cv2
 import numpy as np
@@ -17,10 +16,6 @@ MAX_EXPECTED_DISPLACEMENT = 50.0  # px, at 25fps
 MIN_DISPLACEMENT = 5.0  # px/frame, threshold for "moving"
 REFERENCE_AREA = 200.0  # px², rough frisbee box area in 1280×720 video
 MIN_SCORE = 0.3  # minimum score to accept any candidate
-GATE_THRESHOLD = 5.9915  # chi2_0.95(df=2) -- Mahalanobis distance squared threshold
-
-
-H = np.array([[1, 0, 0, 0], [0, 1, 0, 0]], dtype=np.float32)
 
 
 def init_kalman() -> cv2.KalmanFilter:
@@ -33,35 +28,18 @@ def init_kalman() -> cv2.KalmanFilter:
         [0, 0, 1, 0],
         [0, 0, 0, 1],
     ], dtype=np.float32)
-    kf.processNoiseCov = np.eye(4, dtype=np.float32) * 0.01
-    kf.measurementNoiseCov = np.eye(2, dtype=np.float32) * 1.0
+    kf.processNoiseCov = np.eye(4, dtype=np.float32) * 0.003
+    kf.measurementNoiseCov = np.eye(2, dtype=np.float32) * 0.1
     kf.errorCovPost = np.eye(4, dtype=np.float32) * 100.0
     return kf
 
 
-def mahalanobis_gate(
-    kf: cv2.KalmanFilter,
-    prediction: tuple[float, float],
-    measurement: tuple[float, float],
-) -> float:
-    innov = np.array([
-        [measurement[0] - prediction[0]],
-        [measurement[1] - prediction[1]],
-    ], dtype=np.float32)
-    P = kf.errorCovPost
-    S = H @ P @ H.T + kf.measurementNoiseCov
-    S_inv = np.linalg.inv(S)
-    return float((innov.T @ S_inv @ innov)[0, 0])
-
-
-
 def score_candidates(
-    kf: cv2.KalmanFilter,
     candidates: list[dict],
     trajectory: 'Trajectory | None',
     prediction: tuple[float, float] | None,
 ) -> int:
-    """Return index of the best candidate, or -1 if empty. Uses Mahalanobis gating."""
+    """Return index of the best candidate, or -1 if empty."""
     if not candidates:
         return -1
 
@@ -81,10 +59,8 @@ def score_candidates(
             area_size_score = max(0.0, min(1.0, 1.0 - abs(np.log2(area / 200.0))))
             score = 0.7 * conf + 0.3 * area_size_score
         else:
-            d2 = mahalanobis_gate(kf, prediction, (cx, cy))
-            motion_score = max(0.0, min(1.0, 1.0 - d2 / GATE_THRESHOLD))
-            if d2 > GATE_THRESHOLD:
-                continue
+            dist = np.sqrt((cx - prediction[0]) ** 2 + (cy - prediction[1]) ** 2)
+            motion_score = max(0.0, min(1.0, 1.0 - dist / MAX_EXPECTED_DISPLACEMENT))
 
             if trajectory.areas:
                 prev_area = float(trajectory.areas[-1])
@@ -103,7 +79,7 @@ def score_candidates(
                 trajectory_speed_bonus = min(1.0, avg_speed / MIN_DISPLACEMENT)
             else:
                 trajectory_speed_bonus = 0.5
-            speed_score = min(1.0, np.sqrt(d2) / MIN_DISPLACEMENT)
+            speed_score = min(1.0, dist / MIN_DISPLACEMENT)
 
             score = (0.15 * motion_score + 0.15 * conf
                      + 0.15 * area_consistent_score + 0.10 * aspect_score
