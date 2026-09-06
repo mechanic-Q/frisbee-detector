@@ -1,3 +1,19 @@
+<p align="center">
+  <img src="./assets/readme/hero.svg" width="100%" alt="frisbee-detector：从极限飞盘比赛视频中检测 20-50px 的高速飞盘——YOLOv8s-P2 检测框锁定飞盘并标注置信度，Kalman 轨迹追踪，像素坐标映射为 100m×37m 场地真实坐标">
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/模型-YOLOv8s--P2-ff8c42" alt="检测模型 YOLOv8s-P2">
+  &nbsp;
+  <img src="https://img.shields.io/badge/切片推理-SAHI-ff8c42" alt="SAHI 切片推理">
+  &nbsp;
+  <img src="https://img.shields.io/badge/追踪-Kalman_6状态-3ddc97" alt="6 状态 Kalman 追踪">
+  &nbsp;
+  <img src="https://img.shields.io/badge/标定-Homography-3ddc97" alt="Homography 场地标定">
+  &nbsp;
+  <img src="https://img.shields.io/badge/License-MIT-8fa89c" alt="MIT License">
+</p>
+
 # frisbee-detector
 
 **YOLOv8s-P2 极限飞盘检测模型** — 从比赛视频中检测高速飞行中的飞盘，输出像素坐标 → 场地真实坐标映射。
@@ -38,13 +54,13 @@ frisbee-detector/
 │   └── homography/       # 场地标定结果
 ├── models/train.py       # YOLOv8 训练 CLI
 ├── inference/            # 推理管线（视频推理、追踪、SAHI）
-├── tools/                # 27 个工具脚本（标注、转换、合并、自动标注）
+├── tools/                # 工具脚本集（标注、转换、合并、自动标注）
 ├── utils/                # 核心库（homography、tracker、dataset）
 ├── docs/
 │   ├── rd-journey.md     # 📖 研发全记录（流程、技术选型、踩坑、时间线）
 │   ├── development.md    # 开发指南
 │   └── conventions/      # 命名词典
-└── tests/                # 37+ 单元测试
+└── tests/                # 89 项单元测试
 ```
 
 ## 详细文档
