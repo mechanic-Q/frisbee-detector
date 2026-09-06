@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="1200" height="400" viewBox="0 0 1200 400"
+     role="img" aria-labelledby="fd-title fd-desc">
+  <title id="fd-title">frisbee-detector — YOLOv8s-P2 极限飞盘检测</title>
+  <desc id="fd-desc">左侧为项目名与一句话介绍：从极限飞盘比赛视频中检测 20 到 50 像素的高速飞盘，完成检测、追踪与像素到场地坐标的映射。右侧为一帧视频的检测示意：飞盘被检测框锁定并标注置信度，绿色虚线为 Kalman 追踪轨迹，旁边卡片展示像素坐标到场地真实坐标的映射结果。</desc>
+
+  <rect width="1200" height="400" rx="26" fill="#0c1210"/>
+
+  <!-- ===== 左：标题块 ===== -->
+  <g id="title-block" transform="translate(64 0)">
+    <text x="0" y="96" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+          font-size="18" letter-spacing="1.5" fill="#ff8c42">YOLOv8s-P2 · SAHI · KALMAN · HOMOGRAPHY</text>
+
+    <text x="0" y="164" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif"
+          font-size="52" font-weight="800" fill="#e8f0ec">frisbee-detector</text>
+
+    <text x="0" y="216" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif"
+          font-size="24" fill="#c2d2c9">从比赛视频里钉住那枚 20–50px 的高速飞盘——</text>
+    <text x="0" y="250" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif"
+          font-size="24" fill="#c2d2c9">检测、追踪、像素坐标 → 场地真实坐标，一条流水线。</text>
+
+    <text x="0" y="306" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+          font-size="17" fill="#8fa89c">SAHI 切片推理 · 召回 +5–15%</text>
+    <text x="0" y="334" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+          font-size="17" fill="#8fa89c">6 状态 Kalman 追踪 · 100m × 37m 场地标定</text>
+  </g>
+
+  <!-- ===== 右：检测帧示意 ===== -->
+  <g id="detection-frame">
+    <!-- 视频帧卡 -->
+    <rect x="640" y="56" width="380" height="288" rx="10" fill="#17211d" stroke="#2a3a33"/>
+    <text x="660" y="84" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+          font-size="14" fill="#8fa89c">game1080 / clip_20-23min · 00:21:47</text>
+
+    <!-- 场地透视参考线 -->
+    <g stroke="#2a3a33" stroke-width="1.5" fill="none">
+      <path d="M 672 320 L 788 128 L 972 128 L 988 320 Z"/>
+      <line x1="700" y1="256" x2="968" y2="256"/>
+      <line x1="686" y1="288" x2="978" y2="288"/>
+      <line x1="736" y1="320" x2="760" y2="128"/>
+      <line x1="830" y1="320" x2="868" y2="128"/>
+      <line x1="924" y1="320" x2="950" y2="128"/>
+    </g>
+
+    <!-- 轨迹（历史点渐隐 + 虚线） -->
+    <g fill="#3ddc97">
+      <circle cx="700" cy="296" r="3" opacity="0.25"/>
+      <circle cx="736" cy="268" r="3" opacity="0.4"/>
+      <circle cx="772" cy="234" r="3" opacity="0.55"/>
+      <circle cx="802" cy="198" r="3" opacity="0.75"/>
+    </g>
+    <path d="M 700 296 Q 770 240 812 176" stroke="#3ddc97" stroke-width="2"
+          stroke-dasharray="5 5" fill="none" opacity="0.7"/>
+
+    <!-- 飞盘 + 检测框（四角框） -->
+    <ellipse cx="816" cy="168" rx="13" ry="5" fill="#ff8c42"/>
+    <g stroke="#ff8c42" stroke-width="2.5" fill="none" stroke-linecap="round">
+      <path d="M 790 150 L 790 142 L 798 142"/>
+      <path d="M 838 142 L 846 142 L 846 150"/>
+      <path d="M 846 180 L 846 188 L 838 188"/>
+      <path d="M 798 188 L 790 188 L 790 180"/>
+    </g>
+    <rect x="776" y="110" width="106" height="22" rx="4" fill="#ff8c42"/>
+    <text x="829" y="126" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+          font-size="14" font-weight="700" fill="#0c1210" text-anchor="middle">frisbee 0.87</text>
+  </g>
+
+  <!-- ===== 坐标映射卡 ===== -->
+  <g id="mapping-card">
+    <rect x="1044" y="56" width="92" height="288" rx="10" fill="#17211d" stroke="#2a3a33" transform="translate(0 0)"/>
+    <text x="1090" y="84" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+          font-size="13" fill="#8fa89c" text-anchor="middle">HOMOGRAPHY</text>
+    <text x="1090" y="130" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+          font-size="13" fill="#8fa89c" text-anchor="middle">PIXEL</text>
+    <text x="1090" y="152" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+          font-size="15" fill="#e8f0ec" text-anchor="middle">816,168</text>
+    <path d="M 1090 168 L 1090 196" stroke="#3ddc97" stroke-width="2"/>
+    <path d="M 1085 190 L 1090 197 L 1095 190" stroke="#3ddc97" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <text x="1090" y="230" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+          font-size="13" fill="#8fa89c" text-anchor="middle">FIELD</text>
+    <text x="1090" y="252" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+          font-size="15" fill="#3ddc97" text-anchor="middle">62.4m</text>
+    <text x="1090" y="274" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+          font-size="15" fill="#3ddc97" text-anchor="middle">18.9m</text>
+  </g>
+</svg>
