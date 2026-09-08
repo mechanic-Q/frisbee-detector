@@ -1,0 +1,366 @@
+[
+  {
+    "t_start": 1.27,
+    "t_end": 1.37,
+    "type": "score",
+    "team": "北京大哥",
+    "evidence": "那么场上第一分由护安拿到33439位进对"
+  },
+  {
+    "t_start": 3.41,
+    "t_end": 3.43,
+    "type": "turnover",
+    "team": "北京大哥",
+    "evidence": "但是打的量太高了哇"
+  },
+  {
+    "t_start": 4.12,
+    "t_end": 4.13,
+    "type": "pull",
+    "team": "未知",
+    "evidence": "上来两个回合又更换一个盘"
+  },
+  {
+    "t_start": 4.19,
+    "t_end": 4.22,
+    "type": "turnover",
+    "team": "上海沪蛙",
+    "evidence": "上来两个回合又更换一个盘"
+  },
+  {
+    "t_start": 4.24,
+    "t_end": 4.27,
+    "type": "pull",
+    "team": "未知",
+    "evidence": "也是可见大家的出盘的力度"
+  },
+  {
+    "t_start": 4.49,
+    "t_end": 4.5,
+    "type": "score",
+    "team": "未知",
+    "evidence": "三军军队"
+  },
+  {
+    "t_start": 4.52,
+    "t_end": 4.56,
+    "type": "turnover",
+    "team": "未知",
+    "evidence": "加油加加油加油"
+  },
+  {
+    "t_start": 5,
+    "t_end": 5,
+    "type": "score",
+    "team": "北京大哥",
+    "evidence": "1113奥力赛走到手"
+  },
+  {
+    "t_start": 5.05,
+    "t_end": 5.06,
+    "type": "turnover",
+    "team": "未知",
+    "evidence": "其实马克应该算是打起了自己的老本行"
+  },
+  {
+    "t_start": 5.09,
+    "t_end": 5.1,
+    "type": "pull",
+    "team": "未知",
+    "evidence": "开心生日快开心"
+  },
+  {
+    "t_start": 6.03,
+    "t_end": 6.05,
+    "type": "turnover",
+    "team": "未知",
+    "evidence": "耶耶耶还是需要为自己之前的失误承担后果"
+  },
+  {
+    "t_start": 6.28,
+    "t_end": 6.3,
+    "type": "score",
+    "team": "北京大哥",
+    "evidence": "落点是大哥"
+  },
+  {
+    "t_start": 6.31,
+    "t_end": 6.35,
+    "type": "turnover",
+    "team": "未知",
+    "evidence": "被酷娃的李雪带走"
+  },
+  {
+    "t_start": 7.31,
+    "t_end": 7.38,
+    "type": "score",
+    "team": "北京大哥",
+    "evidence": "甚至有惊无险的拿下这一分"
+  },
+  {
+    "t_start": 8.32,
+    "t_end": 8.36,
+    "type": "pull",
+    "team": "未知",
+    "evidence": "There you go"
+  },
+  {
+    "t_start": 9,
+    "t_end": 10,
+    "type": "score",
+    "team": "上海沪蛙",
+    "evidence": "新春快快快下来"
+  },
+  {
+    "t_start": 9.03,
+    "t_end": 9.06,
+    "type": "pull",
+    "team": "未知",
+    "evidence": "快快帮我上脚上明显看得出来"
+  },
+  {
+    "t_start": 10.32,
+    "t_end": 10.4,
+    "type": "score",
+    "team": "王楚队伍",
+    "evidence": "哇哇爱的66号王楚成王楚队伍拿到第二分"
+  },
+  {
+    "t_start": 15,
+    "t_end": 15,
+    "type": "pull",
+    "team": "未知",
+    "evidence": "哦吼又给了个提前盘"
+  },
+  {
+    "t_start": 15.45,
+    "t_end": 15.47,
+    "type": "score",
+    "team": "未知",
+    "evidence": "三"
+  },
+  {
+    "t_start": 21,
+    "t_end": 21,
+    "type": "score",
+    "team": "北京大哥",
+    "evidence": "你抵不住你的山顶不住了"
+  },
+  {
+    "t_start": 26,
+    "t_end": 26,
+    "type": "score",
+    "team": "上海沪蛙",
+    "evidence": "人生的每一次超远距离哈尔得分"
+  },
+  {
+    "t_start": 27,
+    "t_end": 27,
+    "type": "turnover",
+    "team": "上海沪蛙",
+    "evidence": "但是又开出了边线"
+  },
+  {
+    "t_start": 28,
+    "t_end": 28,
+    "type": "pull",
+    "team": "北京大哥",
+    "evidence": "比赛比赛打开打开低太低太低太太等等等等"
+  },
+  {
+    "t_start": 28,
+    "t_end": 29,
+    "type": "score",
+    "team": "北京大哥",
+    "evidence": "大哥对这边的放逐回到安琪手里"
+  },
+  {
+    "t_start": 33,
+    "t_end": 33,
+    "type": "score",
+    "team": "上海沪蛙",
+    "evidence": "好找进后迅速红盘"
+  },
+  {
+    "t_start": 33,
+    "t_end": 33,
+    "type": "pull",
+    "team": "上海沪蛙",
+    "evidence": "霍娃逆风开盘"
+  },
+  {
+    "t_start": 34,
+    "t_end": 34,
+    "type": "score",
+    "team": "北京大哥",
+    "evidence": "好找进后迅速红盘"
+  },
+  {
+    "t_start": 36,
+    "t_end": 36,
+    "type": "turnover",
+    "team": "北京大哥",
+    "evidence": "刚才大哥这里没有地盘 没有递下来嘛"
+  },
+  {
+    "t_start": 36.38,
+    "t_end": 36.39,
+    "type": "score",
+    "team": "上海沪蛙",
+    "evidence": "三"
+  },
+  {
+    "t_start": 40.01,
+    "t_end": 40.04,
+    "type": "未知",
+    "team": "未知",
+    "evidence": "不知道被打断了比赛节奏之后"
+  },
+  {
+    "t_start": 40.33,
+    "t_end": 40.35,
+    "type": "pull",
+    "team": "未知",
+    "evidence": "但是同样在想高中发"
+  },
+  {
+    "t_start": 40.37,
+    "t_end": 40.41,
+    "type": "未知",
+    "team": "未知",
+    "evidence": "哎这一次的位置"
+  },
+  {
+    "t_start": 40.5,
+    "t_end": 40.56,
+    "type": "score",
+    "team": "上海沪蛙",
+    "evidence": "那是成功帮助胡阿又拿到盘权"
+  },
+  {
+    "t_start": 41,
+    "t_end": 41,
+    "type": "pull",
+    "team": "未知",
+    "evidence": "看看正时候传盘机会"
+  },
+  {
+    "t_start": 42,
+    "t_end": 42,
+    "type": "score",
+    "team": "北京大哥",
+    "evidence": "终于是大哥成功的保住了自己进攻的回合"
+  },
+  {
+    "t_start": 43,
+    "t_end": 43,
+    "type": "turnover",
+    "team": "上海沪蛙",
+    "evidence": "茂茂把这个盘破坏了出去"
+  },
+  {
+    "t_start": 43.22,
+    "t_end": 43.24,
+    "type": "score",
+    "team": "未知",
+    "evidence": "快躲躲躲"
+  },
+  {
+    "t_start": 44,
+    "t_end": 44,
+    "type": "turnover",
+    "team": "上海沪蛙",
+    "evidence": "正手其实刚才是队列里面有pick的情况出现"
+  },
+  {
+    "t_start": 45.02,
+    "t_end": 45.07,
+    "type": "score",
+    "team": "北京大哥",
+    "evidence": "那样花花把比分改写为七比五"
+  },
+  {
+    "t_start": 45.15,
+    "t_end": 45.21,
+    "type": "turnover",
+    "team": "北京大哥",
+    "evidence": "那么我们也可以看到大哥进攻测的失误"
+  },
+  {
+    "t_start": 45.52,
+    "t_end": 45.56,
+    "type": "score",
+    "team": "上海沪蛙",
+    "evidence": "好耶学一"
+  },
+  {
+    "t_start": 46,
+    "t_end": 46,
+    "type": "pull",
+    "team": "未知",
+    "evidence": "三四个女生开盘"
+  },
+  {
+    "t_start": 46,
+    "t_end": 46,
+    "type": "score",
+    "team": "未知",
+    "evidence": "啊反手还是找到了机会 文森"
+  },
+  {
+    "t_start": 47,
+    "t_end": 47,
+    "type": "pull",
+    "team": "上海沪蛙",
+    "evidence": "一个opp的抛盘"
+  },
+  {
+    "t_start": 4050,
+    "t_end": 4056,
+    "type": "pull",
+    "team": "未知",
+    "evidence": "那是成功帮助胡阿又拿到盘权"
+  },
+  {
+    "t_start": 4101,
+    "t_end": 4103,
+    "type": "turnover",
+    "team": "未知",
+    "evidence": "一周琦打球"
+  },
+  {
+    "t_start": 4112,
+    "t_end": 4116,
+    "type": "score",
+    "team": "上海沪蛙",
+    "evidence": "上手搓了空间护娃打的非常舒服"
+  },
+  {
+    "t_start": 4118,
+    "t_end": 4118,
+    "type": "turnover",
+    "team": "未知",
+    "evidence": "再找专四往后退"
+  },
+  {
+    "t_start": 4139,
+    "t_end": 4139,
+    "type": "pull",
+    "team": "未知",
+    "evidence": "看看正时候传盘机会"
+  },
+  {
+    "t_start": 4141,
+    "t_end": 4143,
+    "type": "turnover",
+    "team": "未知",
+    "evidence": "但是这次打得太高了"
+  },
+  {
+    "t_start": 4145,
+    "t_end": 4148,
+    "type": "pull",
+    "team": "未知",
+    "evidence": "这次是找天琪啊"
+  }
+]
