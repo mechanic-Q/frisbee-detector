@@ -18,7 +18,4 @@ train_one () {
 }
 
 train_one yolo11s.pt 11s
-bash tools/gpu_run.sh bench-rfdetr python3 tools/train_rfdetr.py \
-  > "$LOG/train_bench_rfdetr.log" 2>&1
-echo "[$(date +%H:%M:%S)] trained bench_rfdetr" >> "$LOG/bench_status.log"
 touch "$LOG/.lane2_done"

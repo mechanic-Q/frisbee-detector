@@ -2,6 +2,8 @@
 在 WSL 运行（走 GPU 队列）: bash tools/gpu_run.sh bench-rfdetr python3 tools/train_rfdetr.py
 数据: data/datasets/frisbee_coco（由 yolo_to_coco.py 生成）
 """
+import json
+import os
 from pathlib import Path
 
 ROOT = Path("/mnt/e/frisbee-detector")
@@ -16,9 +18,9 @@ def main():
         dataset_dir=str(DATA),
         output_dir=str(OUT),
         epochs=30,
-        batch_size=4,
+        batch_size=int(os.environ.get("RF_BS", "4")),
         grad_accum_steps=1,
-        resolution=672,      # 56 的倍数；1080P 小目标适当提高输入
+        resolution=int(os.environ.get("RF_RES", "672")),  # 56 的倍数；1080P 小目标适当提高输入
         early_stopping=False,
     )
     print("rfdetr train done ->", OUT)

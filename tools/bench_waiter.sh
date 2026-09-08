@@ -5,7 +5,7 @@ cd /mnt/e/frisbee-detector
 LOG=data/bili_final_test
 PROD_LAST=/home/lmr/comfy/ComfyUI/runs/detect/runs/bili_prod_v8sp2/weights/last.pt
 
-while [ ! -f "$LOG/.lane1_done" ] || [ ! -f "$LOG/.lane2_done" ]; do
+while [ ! -f "$LOG/.lane1_done" ] || [ ! -f "$LOG/.lane2_done" ] || [ ! -f "$LOG/.lane3_done" ]; do
   sleep 60
 done
 echo "[$(date +%H:%M:%S)] 两车道完成，开始统一评测" >> "$LOG/bench_status.log"
