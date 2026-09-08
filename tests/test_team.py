@@ -9,6 +9,7 @@ from frisbee_analyzer.team import (
     MIN_CROPS_FOR_CLUSTER,
     cluster_team_embeddings,
     crop_upper_body,
+    label_from_color,
     label_from_crops,
     majority_vote,
     team_ids_by_x,
@@ -72,6 +73,29 @@ def test_label_from_crops_two_teams():
 
 def test_label_from_crops_empty():
     assert label_from_crops([], [], [], FakeEmbedder()) == {}
+
+
+# ── 颜色特征聚类（v0 主路）────────────────────────────────
+
+def test_label_from_color_separates_red_blue():
+    feats = {i: (0.30, 0.01) for i in range(1, 6)}
+    feats.update({i: (0.01, 0.28) for i in range(6, 11)})
+    mapping, colors = label_from_color(feats)
+    assert mapping is not None and len(mapping) == 10
+    assert len(colors) == 2
+    # 不变量：每个 track 的队色必须与自身红蓝占比一致（与 KMeans 原始标号无关）
+    for t, (rf, bf) in feats.items():
+        expect = "red" if rf >= bf else "blue"
+        assert colors[str(mapping[t])] == expect, f"track {t}: {colors} vs ({rf},{bf})"
+
+
+def test_label_from_color_weak_separation_returns_none():
+    feats = {i: (0.05, 0.04) for i in range(1, 20)}  # 全员无色（如白衫）
+    assert label_from_color(feats) == (None, None)
+
+
+def test_label_from_color_too_few_tracks():
+    assert label_from_color({1: (0.3, 0.0)}) == (None, None)
 
 
 # ── 裁剪 ─────────────────────────────────────────────────

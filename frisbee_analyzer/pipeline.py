@@ -52,7 +52,8 @@ def run(args, stream=None) -> int:
             protocol.emit(protocol.progress(idx, total), stream)
     protocol.emit(protocol.progress(total, total), stream)
 
-    assign_teams(frames, video, cancel_check=None, log=lambda m: protocol.emit(protocol.log(m), stream))
+    team_colors = assign_teams(frames, video, cancel_check=None,
+                               log=lambda m: protocol.emit(protocol.log(m), stream))
 
     out_dir = Path(win_to_wsl(args.output_dir)) if args.output_dir else Path("runs/gui_analysis") / Path(video).stem
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -63,6 +64,7 @@ def run(args, stream=None) -> int:
         "fps": info["fps"],
         "width": info["width"],
         "height": info["height"],
+        "team_colors": team_colors,
         "team_overrides": {},
         "frames": frames,
     }
@@ -73,17 +75,49 @@ def run(args, stream=None) -> int:
     return 0
 
 
+def run_team_only(args, stream=None) -> int:
+    """只重算分队（复用已有 tracks.json 的跟踪结果），用于换分队算法后免重跑 50 分钟跟踪。"""
+    from .team import assign_teams
+
+    doc_path = Path(win_to_wsl(args.team_only))
+    if not doc_path.exists():
+        protocol.emit(protocol.error(f"tracks.json not found: {doc_path}"), stream)
+        return 1
+    doc = json.loads(doc_path.read_text(encoding="utf-8"))
+    video = doc.get("video")
+    if not video or not Path(video).exists():
+        protocol.emit(protocol.error(f"video not found: {video}"), stream)
+        return 1
+    frames = doc.get("frames", {})
+    protocol.emit(protocol.meta(len(frames), doc.get("fps") or 30.0,
+                                doc.get("width") or 0, doc.get("height") or 0), stream)
+    team_colors = assign_teams(frames, video, log=lambda m: protocol.emit(protocol.log(m), stream))
+    doc["team_colors"] = team_colors
+    tmp = doc_path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+    tmp.replace(doc_path)
+    protocol.emit(protocol.result(wsl_to_win(str(doc_path))), stream)
+    return 0
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="frisbee match analysis worker (JSON-lines on stdout)")
-    parser.add_argument("--video", required=True, help="视频路径（Windows 或 WSL 风格均可）")
+    parser.add_argument("--video", default=None, help="视频路径（Windows 或 WSL 风格均可；--team-only 时可省）")
     parser.add_argument("--output-dir", default=None, help="产物目录（默认 runs/gui_analysis/<视频名>）")
     parser.add_argument("--weights", default="yolo26x.pt", help="检测权重（零样本 COCO person 或 player/referee 微调）")
     parser.add_argument("--conf", type=float, default=0.25)
     parser.add_argument("--imgsz", type=int, default=1280)
     parser.add_argument("--max-frames", type=int, default=None, help="调试用：只处理前 N 帧")
+    parser.add_argument("--team-only", metavar="TRACKS_JSON", default=None,
+                        help="跳过跟踪，只对已有 tracks.json 重算分队")
     args = parser.parse_args(argv)
 
+    if not args.team_only and not args.video:
+        parser.error("--video is required unless --team-only is used")
+
     try:
+        if args.team_only:
+            return run_team_only(args)
         return run(args)
     except WorkerCancelled as e:
         protocol.emit(protocol.error(f"cancelled: {e}"))

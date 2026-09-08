@@ -21,6 +21,7 @@ class VideoPlayerWidget(QWidget):
         self._frame: QImage | None = None
         self._video_size = (0, 0)
         self._overlay_dets: list[dict] | None = None
+        self._team_colors: dict = {}
         self._field_polylines: list[list[tuple[float, float]]] = []
         self._calib_points: list[tuple[float, float]] = []
         self._click_handler = None  # callable(video_x, video_y)
@@ -70,6 +71,11 @@ class VideoPlayerWidget(QWidget):
         self._overlay_dets = dets
         self.update()
 
+    def set_team_colors(self, colors: dict | None) -> None:
+        """doc["team_colors"]：{"0":"red","1":"blue"}——队伍实际球衣色，用于框着色。"""
+        self._team_colors = colors or {}
+        self.update()
+
     def set_field_polylines(self, polylines: list[list[tuple[float, float]]]) -> None:
         self._field_polylines = polylines
         self.update()
@@ -105,7 +111,8 @@ class VideoPlayerWidget(QWidget):
         if self._field_polylines:
             overlay.draw_polylines(painter, self._field_polylines, vw, vh, self.width(), self.height())
         if self._overlay_dets:
-            overlay.draw_detections(painter, self._overlay_dets, vw, vh, self.width(), self.height())
+            overlay.draw_detections(painter, self._overlay_dets, vw, vh, self.width(), self.height(),
+                                    team_colors=self._team_colors)
         if self._calib_points:
             overlay.draw_points(painter, self._calib_points, vw, vh, self.width(), self.height())
 

@@ -1,14 +1,16 @@
-"""分队模块：SigLIP 上半身裁剪 embedding → UMAP(3) → KMeans(2)，半场 x 先验定队号。
+"""分队模块：球衣颜色特征（HSV 红蓝占比）KMeans 聚类为主，SigLIP 嵌入为兜底。
 
-蓝本 roboflow/sports team.py。team_id 编码与 tools/auto_label_roles.py 一致：
-0/1 = 两队（0=平均 x 较小的一侧），None = 未分配（勿用 -1，events.py 里 -1 是裁判）。
-纯函数（聚类/定队号/多数投票）与视频 I/O 分离，前者可无 GPU 单测。
-embedding 模型用 HF 缓存的 google/siglip-so400m-patch14-384（transformers）。
+v0 修订（2026-09-09 抽检发现）：SigLIP+UMAP+KMeans 在本素材上按景别/构图而非球衣色
+分簇（抽检一致性仅 0.52），而 HSV 红蓝规则在本素材已被 E4' 验证为主通道有效——
+故改为颜色特征聚类为主路径；颜色分离度不足时回退 SigLIP（蓝本 roboflow/sports team.py）。
+team_id 编码：0=主色偏红的一队、1=偏蓝（确定性排序），实际颜色写入 doc["team_colors"]；
+未分配为 None（勿用 -1，events.py 里 -1 是裁判）。
 """
 
 from __future__ import annotations
 
 import json
+import itertools
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -171,6 +173,46 @@ def majority_vote(per_track_labels: dict[int, list[int]], cluster_to_team: dict[
     return out
 
 
+def jersey_fraction(crop: np.ndarray) -> tuple[float, float]:
+    """上半身裁剪 → (red_frac, blue_frac)。红色 H<8|H>172，蓝色 H∈[95,135]，S/V 阈值同 E4'。"""
+    hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+    h = hsv[..., 0].astype(np.int32)
+    s = hsv[..., 1].astype(np.int32)
+    v = hsv[..., 2].astype(np.int32)
+    n = int(h.size)
+    red = ((h < 8) | (h > 172)) & (s >= 70) & (v >= 60)
+    blue = (h >= 95) & (h <= 135) & (s >= 70) & (v >= 60)
+    return float(red.sum()) / n, float(blue.sum()) / n
+
+
+def label_from_color(track_feats: dict[int, tuple[float, float]], n_teams: int = 2,
+                     min_sep: float = 0.15):
+    """track → (mean_red, mean_blue) → KMeans(n_teams)。返回 (mapping, team_colors)。
+
+    队号确定性排序：rf-bf 降序 → team0=主色偏红。簇心分离度 < min_sep 视为颜色不可分，
+    返回 (None, None) 交由上层走 SigLIP 兜底。
+    """
+    if len(track_feats) < n_teams:
+        return None, None
+    from sklearn.cluster import KMeans
+
+    tids = list(track_feats)
+    x = np.array([track_feats[t] for t in tids], dtype=np.float64)
+    km = KMeans(n_clusters=n_teams, n_init=10, random_state=42).fit(x)
+    cents = km.cluster_centers_
+    sep = max(float(np.linalg.norm(cents[a] - cents[b]))
+              for a, b in itertools.combinations(range(n_teams), 2))
+    if sep < min_sep:
+        return None, None
+    order = sorted(range(n_teams), key=lambda c: cents[c][0] - cents[c][1], reverse=True)
+    remap = {old: new for new, old in enumerate(order)}
+    # 颜色由簇心自身的红蓝占比决定（不能按簇索引查表——KMeans 的原始标号是任意的）
+    colors = {str(remap[c]): ("red" if cents[c][0] >= cents[c][1] else "blue")
+              for c in range(n_teams)}
+    mapping = {tids[i]: remap[int(lab)] for i, lab in enumerate(km.labels_)}
+    return mapping, colors
+
+
 def label_from_crops(
     track_ids: list[int],
     crops: list[np.ndarray],
@@ -199,28 +241,52 @@ def assign_teams(
     log=print,
     embedder=None,
     sample_interval: int = TEAM_SAMPLE_INTERVAL,
-) -> None:
-    """就地填充 frames[...][i]["team_id"]（未分配为 None）。失败降级为"不分队"，不拖垮 worker。"""
+) -> dict:
+    """就地填充 frames[...][i]["team_id"]，返回 doc["team_colors"]（如 {"0":"red","1":"blue"}）。
+
+    主路：HSV 颜色特征聚类（E4' 验证过的红蓝规则）；颜色分离度不足回退 SigLIP。
+    任何失败降级为"不分队"（返回 {}），不拖垮 worker。team_id 未分配为 None。
+    """
     try:
         track_ids, crops, xs = collect_crops(frames, video_path, sample_interval, cancel_check)
         if not crops:
             log("team: no crops collected, skip")
-            return
+            return {}
         log(f"team: collected {len(crops)} crops / {len(set(track_ids))} tracks")
-        if embedder is None:
-            embedder = SiglipEmbedder()
-        mapping = label_from_crops(track_ids, crops, xs, embedder)
+
+        per_track: defaultdict[int, list[tuple[float, float]]] = defaultdict(list)
+        for tid, crop in zip(track_ids, crops):
+            per_track[tid].append(jersey_fraction(crop))
+        track_feats = {t: (float(np.mean([f[0] for f in fs])), float(np.mean([f[1] for f in fs])))
+                       for t, fs in per_track.items()}
+
+        mapping, colors = label_from_color(track_feats)
+        if mapping is None:
+            log("team: color separation weak, falling back to SigLIP clustering")
+            if embedder is None:
+                try:
+                    embedder = SiglipEmbedder()
+                except Exception as e:  # noqa: BLE001 —— 模型加载失败则放弃兜底
+                    log(f"team: SigLIP unavailable ({type(e).__name__}: {e})")
+                    embedder = False
+            if embedder:
+                mapping = label_from_crops(track_ids, crops, xs, embedder)
+            colors = {}
         if not mapping:
             log("team: too few crops to cluster, frames left unassigned")
-            return
+            return {}
+
         for dets in frames.values():
             for det in dets:
                 det["team_id"] = mapping.get(det["track_id"])
-        log(f"team: assigned {len(mapping)} tracks into teams {sorted(set(mapping.values()))}")
+        log(f"team: assigned {len(mapping)} tracks into teams {sorted(set(mapping.values()))} "
+            f"colors={colors}")
+        return colors
     except WorkerCancelled:
         raise
     except Exception as e:  # noqa: BLE001 —— 分队失败不拖垮整个 worker
         log(f"team: assignment failed ({type(e).__name__}: {e}); frames left unassigned")
+        return {}
 
 
 def write_team_overrides(doc: dict, track_id: int, team_id: int, doc_path: str | Path) -> dict:

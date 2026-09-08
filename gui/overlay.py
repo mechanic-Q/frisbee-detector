@@ -31,17 +31,22 @@ def widget_to_video(px: float, py: float, video_w: float, video_h: float,
 
 
 def draw_detections(painter: QPainter, dets: list[dict], video_w: float, video_h: float,
-                    widget_w: float, widget_h: float, line_width: float = 2.0) -> None:
-    """按 widget 尺寸画当前帧的球员框。dets = tracks.json 的 frame 条目。"""
+                    widget_w: float, widget_h: float, team_colors: dict | None = None,
+                    line_width: float = 2.0) -> None:
+    """按 widget 尺寸画当前帧的球员框。team_colors = doc["team_colors"]（如 {"0":"red"}）。"""
     scale, dx, dy = letterbox(video_w, video_h, widget_w, widget_h)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
     font = QFont()
     font.setPixelSize(max(11, int(12 * scale * 0.6) + 8))
     painter.setFont(font)
+    named = {"red": QColor(255, 72, 72), "blue": QColor(80, 148, 255),
+             "other": QColor(170, 170, 170)}
     for det in dets:
         x1, y1, x2, y2 = det["bbox"]
         team = det.get("team_id")
-        color = TEAM_COLORS.get(team, UNKNOWN_COLOR)
+        color = named.get((team_colors or {}).get(str(team)))
+        if color is None:
+            color = TEAM_COLORS.get(team, UNKNOWN_COLOR)
         painter.setPen(QPen(color, line_width))
         rect = QRectF(dx + x1 * scale, dy + y1 * scale, (x2 - x1) * scale, (y2 - y1) * scale)
         painter.drawRect(rect)

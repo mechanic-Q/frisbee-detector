@@ -171,6 +171,7 @@ class MainWindow(QMainWindow):
         self.doc_path = path
         self.fps = float(doc.get("fps") or 30.0)
         self.act_team.setEnabled(True)
+        self.player.set_team_colors(doc.get("team_colors"))
         self._update_overlay()
 
     # ── 播放与叠加同步 ───────────────────────────────────
