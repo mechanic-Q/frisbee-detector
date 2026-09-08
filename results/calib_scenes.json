@@ -1,0 +1,90 @@
+{
+  "summary": {
+    "scenes_checked": 10,
+    "solved": 1,
+    "solve_rate": 0.1
+  },
+  "scenes": [
+    {
+      "scene": 0,
+      "t_sec": 2410.0,
+      "white_ratio": 0.1042,
+      "hough_segments": 297,
+      "merged_lines": 10,
+      "solved": false
+    },
+    {
+      "scene": 1,
+      "t_sec": 2650.0,
+      "white_ratio": 0.0883,
+      "hough_segments": 272,
+      "merged_lines": 10,
+      "solved": false
+    },
+    {
+      "scene": 2,
+      "t_sec": 10.0,
+      "white_ratio": 0.0834,
+      "hough_segments": 219,
+      "merged_lines": 10,
+      "solved": false
+    },
+    {
+      "scene": 3,
+      "t_sec": 1930.0,
+      "white_ratio": 0.0476,
+      "hough_segments": 213,
+      "merged_lines": 10,
+      "solved": false
+    },
+    {
+      "scene": 4,
+      "t_sec": 1690.0,
+      "white_ratio": 0.0733,
+      "hough_segments": 160,
+      "merged_lines": 10,
+      "solved": false
+    },
+    {
+      "scene": 5,
+      "t_sec": 2170.0,
+      "white_ratio": 0.0903,
+      "hough_segments": 129,
+      "merged_lines": 10,
+      "solved": true,
+      "corner_area_frac": 0.295
+    },
+    {
+      "scene": 6,
+      "t_sec": 1210.0,
+      "white_ratio": 0.0505,
+      "hough_segments": 115,
+      "merged_lines": 10,
+      "solved": false
+    },
+    {
+      "scene": 7,
+      "t_sec": 490.0,
+      "white_ratio": 0.0399,
+      "hough_segments": 104,
+      "merged_lines": 10,
+      "solved": false
+    },
+    {
+      "scene": 8,
+      "t_sec": 970.0,
+      "white_ratio": 0.0392,
+      "hough_segments": 89,
+      "merged_lines": 10,
+      "solved": false
+    },
+    {
+      "scene": 9,
+      "t_sec": 730.0,
+      "white_ratio": 0.035,
+      "hough_segments": 78,
+      "merged_lines": 7,
+      "solved": false
+    }
+  ]
+}
