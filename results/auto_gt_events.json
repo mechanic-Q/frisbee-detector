@@ -1,0 +1,158 @@
+{
+ "note": "votes=支持信源数(字幕/ocr/asr); score 以 OCR 记分牌为准绳",
+ "final_score": "5:7",
+ "events": [
+  {
+   "type": "score",
+   "t_sec": 1.3,
+   "team": "北京大哥",
+   "votes": 2,
+   "sources": [
+    "asr",
+    "subtitle"
+   ],
+   "evidence": "那么场上第一分由护安拿到33439位进对"
+  },
+  {
+   "type": "turnover",
+   "t_sec": 3.4,
+   "team": "上海沪蛙",
+   "votes": 2,
+   "sources": [
+    "asr",
+    "subtitle"
+   ],
+   "evidence": "一个进攻但是打的量太高了哇"
+  },
+  {
+   "type": "score",
+   "t_sec": 118.0,
+   "team": "上海沪蛙",
+   "votes": 1,
+   "sources": [
+    "ocr"
+   ],
+   "evidence": "记分牌 0:0->0:1"
+  },
+  {
+   "type": "score",
+   "t_sec": 321,
+   "team": "北京大哥",
+   "votes": 1,
+   "sources": [
+    "asr"
+   ],
+   "evidence": "我的，人华队，在第一个回合是拿到。了 break 那大哥"
+  },
+  {
+   "type": "score",
+   "t_sec": 464.0,
+   "team": "北京大哥",
+   "votes": 1,
+   "sources": [
+    "ocr"
+   ],
+   "evidence": "记分牌 0:1->1:1"
+  },
+  {
+   "type": "score",
+   "t_sec": 644.0,
+   "team": "上海沪蛙",
+   "votes": 1,
+   "sources": [
+    "ocr"
+   ],
+   "evidence": "记分牌 1:1->1:2"
+  },
+  {
+   "type": "score",
+   "t_sec": 782.0,
+   "team": "上海沪蛙",
+   "votes": 1,
+   "sources": [
+    "ocr"
+   ],
+   "evidence": "记分牌 1:2->1:3"
+  },
+  {
+   "type": "score",
+   "t_sec": 978.0,
+   "team": "北京大哥",
+   "votes": 1,
+   "sources": [
+    "ocr"
+   ],
+   "evidence": "记分牌 1:3->2:3"
+  },
+  {
+   "type": "score",
+   "t_sec": 1162.0,
+   "team": "上海沪蛙",
+   "votes": 1,
+   "sources": [
+    "ocr"
+   ],
+   "evidence": "记分牌 2:3->2:4"
+  },
+  {
+   "type": "score",
+   "t_sec": 1270.0,
+   "team": "北京大哥",
+   "votes": 1,
+   "sources": [
+    "ocr"
+   ],
+   "evidence": "记分牌 2:4->3:4"
+  },
+  {
+   "type": "score",
+   "t_sec": 1472.0,
+   "team": "上海沪蛙",
+   "votes": 1,
+   "sources": [
+    "ocr"
+   ],
+   "evidence": "记分牌 3:4->3:5"
+  },
+  {
+   "type": "score",
+   "t_sec": 1566.0,
+   "team": "北京大哥",
+   "votes": 1,
+   "sources": [
+    "ocr"
+   ],
+   "evidence": "记分牌 3:5->4:5"
+  },
+  {
+   "type": "score",
+   "t_sec": 1930.0,
+   "team": "上海沪蛙",
+   "votes": 1,
+   "sources": [
+    "ocr"
+   ],
+   "evidence": "记分牌 4:5->4:6"
+  },
+  {
+   "type": "score",
+   "t_sec": 2304.0,
+   "team": "北京大哥",
+   "votes": 1,
+   "sources": [
+    "ocr"
+   ],
+   "evidence": "记分牌 4:6->5:6"
+  },
+  {
+   "type": "score",
+   "t_sec": 2714.0,
+   "team": "上海沪蛙",
+   "votes": 1,
+   "sources": [
+    "ocr"
+   ],
+   "evidence": "记分牌 5:6->5:7"
+  }
+ ]
+}
