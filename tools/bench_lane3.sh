@@ -4,7 +4,7 @@ set -u
 cd /mnt/e/frisbee-detector
 export GPU_LOCK=/tmp/frisbee_gpu_lane3.lock
 export RF_BS=2
-export RF_RES=560
+export RF_RES=576
 LOG=data/bili_final_test
 
 bash tools/gpu_run.sh bench-rfdetr python3 tools/train_rfdetr.py \
