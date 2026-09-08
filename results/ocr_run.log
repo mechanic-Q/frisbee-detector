@@ -1,0 +1,22 @@
+[gpu-queue] 'scoreboard-ocr' 排队等待 GPU ... 23:12:33
+[gpu-queue] 'scoreboard-ocr' 获得 GPU 23:12:33
+fps=30.000007281041057, total=84981, sampling every 60 frames (~0.5fps)
+  [    2.0s] score 0:0 (diff=24.2)
+  [  118.0s] score 0:1 (diff=15.8)
+  vlm err: Error code: 400 - {'contentFilter': [{'level': 2, 'role': 'user'}], 'error': {'code': '1301', 'message': '系统检测到输入或生成内容可能包含不安全或敏感内容，请您避免输入易产生敏感内容的提示语，感谢您的配合。'}}
+  [  464.0s] score 1:1 (diff=37.8)
+  [  644.0s] score 1:2 (diff=11.8)
+  [  782.0s] score 1:3 (diff=9.4)
+  [  978.0s] score 2:3 (diff=23.4)
+  [ 1162.0s] score 2:4 (diff=13.8)
+  [ 1270.0s] score 3:4 (diff=11.9)
+  [ 1472.0s] score 3:5 (diff=10.9)
+  [ 1566.0s] score 4:5 (diff=19.0)
+  [ 1930.0s] score 4:6 (diff=18.3)
+  [ 2304.0s] score 5:6 (diff=8.8)
+  [ 2314.0s] score 4:6 (diff=5.6)
+  [ 2514.0s] score 5:6 (diff=61.1)
+  [ 2714.0s] score 5:7 (diff=14.7)
+vlm reads: 1369, score changes: 15
+saved -> out/score_timeline.json
+[gpu-queue] 'scoreboard-ocr' 释放 GPU (exit=0) 23:25:32
