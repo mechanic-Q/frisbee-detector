@@ -42,9 +42,33 @@ python3 tools/collect_hard_negatives.py \
   --output data/datasets/frisbee_merged/images/train_hard_neg
 ```
 
+## Match-analysis GUI v0 (feat/gui-v0 → .worktrees/gui-v0)
+
+```bash
+# PySide6 MUST be on python.org Python 3.11 — conda 3.13 hits a Qt DLL load failure
+cd .worktrees/gui-v0
+py -3.11 -m pip install PySide6 opencv-python numpy   # once
+py -3.11 -m gui.main                                  # GUI: open video → analyze → overlay replay
+QT_QPA_PLATFORM=offscreen py -3.11 -m gui.main --smoke VIDEO [TRACKS_JSON]   # headless smoke
+
+# Analysis worker (WSL/GPU, standalone CLI; stdout = JSON-lines per protocol.py)
+python3 -m frisbee_analyzer.pipeline \
+  --video 'E:\frisbee-detector\data\bili_final_test\testclip_60_120s.mp4' \
+  --weights /mnt/e/frisbee-detector/yolo26x.pt \
+  --output-dir 'E:\...\runs\gui_analysis\<stem>'
+# artifact: runs/gui_analysis/<stem>/tracks.json  {video,fps,frames,team_overrides}
+```
+Worker accepts Windows or WSL paths (converted in protocol.py). Zero-shot COCO person
+weights (yolo26x) are the v0 placeholder — swap in player/referee finetuned weights via
+`--weights` without GUI changes. Known limits: zero-shot tracking includes spectators;
+tracks sampled between team-sampling frames stay `team_id: null`.
+
 ## Architecture
 
 ```
+gui/              → PySide6 桌面端（Windows 原生；worker 经 wsl.exe 桥接，QProcess+JSON-lines）
+frisbee_analyzer/ → pipeline.py (worker CLI) + protocol.py (消息/路径转换) + tracking.py (BoT-SORT)
+                    + team.py (SigLIP+UMAP+KMeans 分队) + events.py (事件引擎骨架，Phase 3 接入)
 configs/          → paths.py (RESEARCH_ROOT, PROJECT_ROOT), models.py (DEFAULT_MODEL)
 utils/            → dataset.py (YAML gen, split), io.py (safe copy/write)
 tools/            → data conversion & prep scripts (auto_label, merge, extract_frames)
