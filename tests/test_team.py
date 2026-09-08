@@ -7,6 +7,7 @@ import pytest
 
 from frisbee_analyzer.team import (
     MIN_CROPS_FOR_CLUSTER,
+    apply_team_from_cls,
     cluster_team_embeddings,
     crop_upper_body,
     label_from_color,
@@ -106,6 +107,18 @@ def test_crop_upper_body():
     assert crop.shape[0] == pytest.approx(180, abs=2)
     assert crop.shape[1] == 100
     assert crop_upper_body(frame, [0, 0, 5, 5]) is None  # 太小
+
+
+# ── 类别即队伍（players_e4 权重路径）──────────────────────
+
+def test_apply_team_from_cls():
+    frames = {"0": [{"track_id": 1, "cls": 0}, {"track_id": 2, "cls": 1}],
+              "1": [{"track_id": 3, "cls": 2}, {"track_id": 4, "cls": 3}]}
+    n = apply_team_from_cls(frames)
+    assert n == 4
+    assert frames["0"][0]["team_id"] == 0 and frames["0"][1]["team_id"] == 1
+    assert frames["1"][0]["team_id"] == 2
+    assert frames["1"][1]["team_id"] is None  # cls=3（观众/忽略）不判队
 
 
 # ── 改判落盘 ─────────────────────────────────────────────

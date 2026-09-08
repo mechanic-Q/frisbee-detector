@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, QPointF, QRectF
-from PySide6.QtGui import QColor, QFont, QPainter, QPen
+from PySide6.QtGui import QColor, QFont, QPainter, QPen, QPolygonF
 
 # team_id 编码与 frisbee_analyzer/tools 惯例一致：0=红 1=蓝 2=裁判 3=旁观，None=未分配
 TEAM_COLORS = {
@@ -86,6 +86,44 @@ def draw_points(painter: QPainter, points: list[tuple[float, float]], video_w, v
         painter.setPen(QPen(color, 2))
         painter.drawEllipse(QPointF(cx, cy), 6, 6)
         painter.drawText(QPointF(cx + 9, cy - 6), str(i))
+
+
+def draw_endzones(painter: QPainter, matrix, video_w: float, video_h: float,
+                  widget_w: float, widget_h: float) -> None:
+    """标定存在时渲染两端得分区（半透明填充）与得分线（goal lines）。
+
+    matrix 为像素→世界单应性（utils.homography 的 3x3）。
+    """
+    from utils.homography import ENDZONES_WORLD, world_to_pixel
+
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    for i, poly in enumerate(ENDZONES_WORLD):
+        pts_px = []
+        for wx, wy in poly:
+            px, py = world_to_pixel(matrix, wx, wy)
+            if px == px and py == py:
+                pts_px.append((px, py))
+        if len(pts_px) < 3:
+            continue
+        scale, dx, dy = letterbox(video_w, video_h, widget_w, widget_h)
+        fill = QColor(255, 72, 72, 26) if i == 0 else QColor(80, 148, 255, 26)
+        painter.setPen(QPen(QColor(242, 244, 248, 160), 2))
+        painter.setBrush(fill)
+        polygon = QPolygonF([QPointF(dx + x * scale, dy + y * scale) for x, y in pts_px])
+        painter.drawPolygon(polygon)
+    # 得分线加亮（边线已由 draw_polylines 的场地线覆盖）
+    goal_px = []
+    for a, b in [(18, 18), (82, 82)]:
+        seg = []
+        for i in range(21):
+            t = i / 20
+            px, py = world_to_pixel(matrix, a, t * 37)
+            if px == px and py == py:
+                seg.append((px, py))
+        if len(seg) > 1:
+            goal_px.append(seg)
+    draw_polylines(painter, goal_px, video_w, video_h, widget_w, widget_h,
+                   color=QColor(242, 244, 248, 200), width=2.6)
 
 
 def draw_polylines(painter: QPainter, polylines_px: list[list[tuple[float, float]]],

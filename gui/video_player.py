@@ -23,6 +23,7 @@ class VideoPlayerWidget(QWidget):
         self._overlay_dets: list[dict] | None = None
         self._team_colors: dict = {}
         self._field_polylines: list[list[tuple[float, float]]] = []
+        self._calib_matrix = None
         self._calib_points: list[tuple[float, float]] = []
         self._click_handler = None  # callable(video_x, video_y)
 
@@ -80,6 +81,11 @@ class VideoPlayerWidget(QWidget):
         self._field_polylines = polylines
         self.update()
 
+    def set_calibration(self, matrix) -> None:
+        """设置像素→世界单应性；非 None 时渲染得分区与得分线。"""
+        self._calib_matrix = matrix
+        self.update()
+
     def set_calib_points(self, points: list[tuple[float, float]]) -> None:
         self._calib_points = points
         self.update()
@@ -110,6 +116,8 @@ class VideoPlayerWidget(QWidget):
         painter.drawImage(int(dx), int(dy), target)
         if self._field_polylines:
             overlay.draw_polylines(painter, self._field_polylines, vw, vh, self.width(), self.height())
+        if self._calib_matrix is not None:
+            overlay.draw_endzones(painter, self._calib_matrix, vw, vh, self.width(), self.height())
         if self._overlay_dets:
             overlay.draw_detections(painter, self._overlay_dets, vw, vh, self.width(), self.height(),
                                     team_colors=self._team_colors)

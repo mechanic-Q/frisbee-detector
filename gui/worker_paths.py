@@ -32,7 +32,8 @@ def _fwd(path: str) -> str:
 
 def build_worker_argv(video_win: str, output_dir_win: str, weights_win: str | None = None,
                       max_frames: int | None = None, task_name: str = "gui-analysis",
-                      use_gpu_queue: bool = True, team_only: str | None = None) -> list[str]:
+                      use_gpu_queue: bool = True, team_only: str | None = None,
+                      classes: str | None = None, team_from_cls: bool = False) -> list[str]:
     """构造 wsl.exe 参数列表。GPU 任务一律经 gpu_run.sh 排队（use_gpu_queue=False 需显式说明理由）。"""
     wsl_root = protocol.win_to_wsl(str(PROJECT_ROOT_GUI))
     cmd = ["python3", "-m", "frisbee_analyzer.pipeline"]
@@ -44,6 +45,10 @@ def build_worker_argv(video_win: str, output_dir_win: str, weights_win: str | No
         cmd += ["--weights", protocol.win_to_wsl(_fwd(weights_win))]
     if max_frames:
         cmd += ["--max-frames", str(max_frames)]
+    if classes:
+        cmd += ["--classes", classes]
+    if team_from_cls:
+        cmd += ["--team-from-cls"]
     if use_gpu_queue:
         return ["--cd", wsl_root, "-e", "bash", gpu_queue_script(), task_name, *cmd]
     return ["--cd", wsl_root, "-e", *cmd]
