@@ -72,12 +72,15 @@ movie/            → test & source videos
 - **RTX 5080 16GB**: batch=2 max, workers=2 (batch=4 OOMs during validation, batch=8 OOMs immediately)
 - YOLO training **must run in tmux** — Bash tool has 10-min timeout, training takes 1-3h
 
-### Model save path DOUBLE-NESTING bug
-YOLO creates output at `runs/detect/runs/detect/<name>/` when `project="runs/detect"`.
-Always move the model after training:
-```bash
-mv runs/detect/runs/detect/frisbee_det_s_vN runs/detect/frisbee_det_s_vN
-```
+### Model save path — FIXED (2026-09-09), no more manual mv
+`models/train.py` passes an ABSOLUTE `project=<PROJECT_ROOT>/runs/detect`, so runs land
+directly in `runs/detect/<name>`. Root cause of the old trap: a RELATIVE `project` is
+resolved against ultralytics' global `~/.config/Ultralytics/settings.json` `runs_dir`
+(= `~/comfy/ComfyUI/runs`, written by the ComfyUI environment), producing
+`ComfyUI/runs/detect/runs/<name>/`. Historical runs still live there — e.g. the
+unfinished `bili_prod_v8sp2` (died at epoch 15/100). Note: the default `PROJECT_ROOT`
+points at the main checkout, so training launched from a worktree still collects
+models into the main repo's `runs/detect/`.
 
 ### Data leakage — test video frames in training
 Frames extracted for pseudo-labeling must NEVER come from test videos.

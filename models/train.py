@@ -50,7 +50,7 @@ def train_frisbee_detector(
         imgsz=imgsz,
         batch=batch,
         name=name,
-        project="runs",
+        project=str(PROJECT_ROOT / "runs" / "detect"),
         pretrained=True,
         optimizer="AdamW",
         lr0=0.001,
