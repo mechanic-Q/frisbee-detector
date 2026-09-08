@@ -46,14 +46,25 @@ def run(args, stream=None) -> int:
         conf=args.conf,
         imgsz=args.imgsz,
         max_frames=args.max_frames,
+        classes=tuple(args.classes),
     ):
         frames[str(idx)] = dets
         if idx % PROGRESS_EVERY == 0:
             protocol.emit(protocol.progress(idx, total), stream)
     protocol.emit(protocol.progress(total, total), stream)
 
-    team_colors = assign_teams(frames, video, cancel_check=None,
-                               log=lambda m: protocol.emit(protocol.log(m), stream))
+    if args.team_from_cls:
+        from .team import apply_team_from_cls
+
+        n = apply_team_from_cls(frames)
+        team_colors = {}
+        protocol.emit(protocol.log(f"team: {n} dets assigned from detector classes "
+                                   f"{list(args.classes)}"), stream)
+    else:
+        from .team import assign_teams
+
+        team_colors = assign_teams(frames, video, cancel_check=None,
+                                   log=lambda m: protocol.emit(protocol.log(m), stream))
 
     out_dir = Path(win_to_wsl(args.output_dir)) if args.output_dir else Path("runs/gui_analysis") / Path(video).stem
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -108,6 +119,9 @@ def main(argv=None) -> int:
     parser.add_argument("--conf", type=float, default=0.25)
     parser.add_argument("--imgsz", type=int, default=1280)
     parser.add_argument("--max-frames", type=int, default=None, help="调试用：只处理前 N 帧")
+    parser.add_argument("--classes", default="0", help="检测类别过滤（逗号分隔；players_e4 权重用 0,1,2）")
+    parser.add_argument("--team-from-cls", action="store_true",
+                        help="players_e4 权重：检测类别即队伍（0=红队 1=蓝队 2=裁判），跳过聚类")
     parser.add_argument("--team-only", metavar="TRACKS_JSON", default=None,
                         help="跳过跟踪，只对已有 tracks.json 重算分队")
     args = parser.parse_args(argv)
@@ -118,6 +132,7 @@ def main(argv=None) -> int:
     try:
         if args.team_only:
             return run_team_only(args)
+        args.classes = [int(c) for c in str(args.classes).split(",") if c.strip()]
         return run(args)
     except WorkerCancelled as e:
         protocol.emit(protocol.error(f"cancelled: {e}"))

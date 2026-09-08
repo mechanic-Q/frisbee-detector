@@ -39,11 +39,13 @@ def iter_player_tracks(
     tracker: str = "botsort.yaml",
     cancel_check=None,
     max_frames: int | None = None,
+    classes: tuple[int, ...] = (0,),
 ):
-    """逐帧产出 (frame_idx, detections)。detection = {track_id, bbox, conf}。
+    """逐帧产出 (frame_idx, detections)。detection = {track_id, bbox, conf, cls}。
 
-    零样本用 COCO person 预训练权重（classes=[0]）；player/referee 微调权重
-    就绪后经 --weights 换入，本函数与 GUI 均无需改动。
+    零样本用 COCO person 预训练权重（classes=(0,)）；players_e4 微调权重就绪后传
+    classes=(0,1,2)（player-red/player-blue/referee），类别即队伍（见 pipeline
+    --team-from-cls），观众从检测端被类别排除。
     """
     from ultralytics import YOLO  # 惰性导入：模块本身可在无 torch 环境做静态检查
 
@@ -53,7 +55,7 @@ def iter_player_tracks(
         source=str(video_path),
         conf=conf,
         imgsz=imgsz,
-        classes=[0],
+        classes=list(classes),
         tracker=tracker,
         persist=True,
         stream=True,
@@ -66,11 +68,13 @@ def iter_player_tracks(
             ids = res.boxes.id.int().cpu().tolist()
             confs = res.boxes.conf.cpu().tolist()
             boxes = res.boxes.xyxy.cpu().numpy()
-            for tid, c, box in zip(ids, confs, boxes):
+            clss = res.boxes.cls.int().cpu().tolist()
+            for tid, c, box, cbin in zip(ids, confs, boxes, clss):
                 dets.append({
                     "track_id": int(tid),
                     "bbox": [round(float(v), 1) for v in box],
                     "conf": round(float(c), 3),
+                    "cls": int(cbin),
                 })
         yield frame_idx, dets
         frame_idx += 1

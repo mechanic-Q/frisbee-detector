@@ -289,6 +289,20 @@ def assign_teams(
         return {}
 
 
+def apply_team_from_cls(frames: dict, valid_classes: tuple[int, ...] = (0, 1, 2)) -> int:
+    """players_e4 微调权重路径：检测类别即队伍（0=player-red 1=player-blue 2=referee）。
+
+    就地填 frames[...][i]["team_id"]，返回处理框数。观众/漏检类（如 cls=3）置 None。
+    """
+    n = 0
+    for dets in frames.values():
+        for det in dets:
+            cls = det.get("cls")
+            det["team_id"] = cls if cls in valid_classes else None
+            n += 1
+    return n
+
+
 def write_team_overrides(doc: dict, track_id: int, team_id: int, doc_path: str | Path) -> dict:
     """GUI 人工改判：更新 team_overrides 并原子写回 JSON（决策即落盘）。"""
     doc.setdefault("team_overrides", {})[str(int(track_id))] = int(team_id)

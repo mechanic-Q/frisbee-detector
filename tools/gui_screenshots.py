@@ -84,6 +84,21 @@ def main() -> int:
     dlg.grab().save(str(OUT / "03_calibrate_dialog.png"))
     dlg.close()
 
+    if win.doc and win.player.grab_current_frame() is not None:
+        # 演示矩阵（角点为目视近似值）——验证得分区/得分线渲染路径，非精确标定
+        from utils.homography import compute_homography
+
+        m, _rmse = compute_homography([
+            (40, 470, 0, 37), (1880, 470, 100, 37),
+            (1890, 1040, 100, 0), (60, 1040, 0, 0),
+        ])
+        if m is not None:
+            win.player.set_calibration(m)
+            win.player.seek_frame(6000, win.fps)
+            pump(app, 1.0)
+            win.grab().save(str(OUT / "05_main_endzones.png"))
+            win.player.set_calibration(None)
+
     if win.doc:
         tdlg = TeamOverrideDialog(win.doc, win.doc_path, win)
         tdlg.resize(640, 520)
