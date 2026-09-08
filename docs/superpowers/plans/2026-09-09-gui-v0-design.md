@@ -91,3 +91,11 @@
    ├─► [队伍改判] ─► 表格改队 → 内存+磁盘即时同步
    └─► 回放：position(ms)→帧号→该帧 dets → QPainter 叠加
 ```
+
+## 6. UI 主题（2026-09-09 追加）
+
+暗色 + macOS 毛玻璃风：`gui/theme.py`（Fusion 基底 + 全局 QSS：半透明玻璃面板 rgba(28,30,38,.72)、
+发丝边框 rgba(255,255,255,.10)、圆角 8-10px、accent #0A84FF、雅黑 UI 字体）；主窗口 show 后经
+`enable_windows_acrylic` 调 DWM SetWindowCompositionAttribute 开 Win10/11 Acrylic 背景模糊
+（失败静默降级纯暗色）。叠加标签改深色药丸底+彩色左缘，保证亮画面可读。样张可随时用
+`py -3.11 tools/gui_screenshots.py` 重生成（QT_QPA_FONTDIR=C:\Windows\Fonts 保证离屏中文渲染）。

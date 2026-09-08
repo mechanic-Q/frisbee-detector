@@ -24,11 +24,14 @@ def main(argv: list[str] | None = None) -> int:
     from PySide6.QtWidgets import QApplication
 
     from .main_window import MainWindow
+    from .theme import apply_theme, enable_windows_acrylic
 
     app = QApplication(argv)
+    apply_theme(app)
     window = MainWindow()
     window.resize(1360, 820)
     window.show()
+    enable_windows_acrylic(window)  # Win10/11 毛玻璃；失败静默降级为纯暗色
 
     if not smoke:
         return app.exec()

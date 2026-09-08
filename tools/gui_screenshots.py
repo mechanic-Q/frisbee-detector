@@ -47,9 +47,11 @@ def main() -> int:
     from gui.calibrate_dialog import CalibrateDialog
     from gui.main_window import MainWindow
     from gui.team_override import TeamOverrideDialog
+    from gui.theme import apply_theme
 
     OUT.mkdir(parents=True, exist_ok=True)
     app = QApplication([])
+    apply_theme(app)
     win = MainWindow()
     win.resize(1360, 820)
     win.show()
