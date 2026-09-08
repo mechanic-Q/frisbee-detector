@@ -15,6 +15,22 @@ data/raw/
 data/frames/
 data/datasets/
 
+# Credentials (never commit)
+data/*cookies*.txt
+
+# Match-analysis test artifacts (large media only; scripts/small csv/log are tracked)
+data/bili_final_test/**/*.mp4
+data/bili_final_test/player_frames/
+data/bili_final_test/player_labels/
+data/bili_final_test/role_labels/
+data/bili_final_test/frames/
+data/bili_final_test/frames1080/
+data/bili_final_test/hardneg_candidates/
+data/bili_final_test/subs/
+data/bili_final_test/out/
+data/bili_final_test/train_*.log
+data/bili_final_test/eval_*.log
+
 # Model weights (>10MB, tracked via Git LFS or stored externally)
 *.pt
 *.pth
