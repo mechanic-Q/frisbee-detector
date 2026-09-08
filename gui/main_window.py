@@ -75,6 +75,7 @@ class MainWindow(QMainWindow):
             self.addAction(act)
 
         toolbar = self.addToolBar("主工具栏")
+        toolbar.setMovable(False)
         toolbar.addAction(self.act_open)
         toolbar.addAction(self.act_open_result)
         toolbar.addSeparator()
@@ -125,10 +126,10 @@ class MainWindow(QMainWindow):
         self.log_view = QPlainTextEdit()
         self.log_view.setReadOnly(True)
         self.log_view.setMaximumBlockCount(2000)
-        dock = QDockWidget("分析日志", self)
-        dock.setWidget(self.log_view)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
-        dock.hide()
+        self.log_dock = QDockWidget("分析日志", self)
+        self.log_dock.setWidget(self.log_view)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.log_dock)
+        self.log_dock.hide()
 
     def _log(self, text: str):
         self.log_view.appendPlainText(text)

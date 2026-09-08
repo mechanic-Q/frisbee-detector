@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QPointF, QRectF
+from PySide6.QtCore import Qt, QPointF, QRectF
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
 
 # team_id 编码与 frisbee_analyzer/tools 惯例一致：0=红 1=蓝 2=裁判 3=旁观，None=未分配
@@ -34,11 +34,14 @@ def draw_detections(painter: QPainter, dets: list[dict], video_w: float, video_h
                     widget_w: float, widget_h: float, team_colors: dict | None = None,
                     line_width: float = 2.0) -> None:
     """按 widget 尺寸画当前帧的球员框。team_colors = doc["team_colors"]（如 {"0":"red"}）。"""
+    from PySide6.QtGui import QFontMetrics
+
     scale, dx, dy = letterbox(video_w, video_h, widget_w, widget_h)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
     font = QFont()
     font.setPixelSize(max(11, int(12 * scale * 0.6) + 8))
     painter.setFont(font)
+    metrics = QFontMetrics(font)
     named = {"red": QColor(255, 72, 72), "blue": QColor(80, 148, 255),
              "other": QColor(170, 170, 170)}
     for det in dets:
@@ -47,12 +50,27 @@ def draw_detections(painter: QPainter, dets: list[dict], video_w: float, video_h
         color = named.get((team_colors or {}).get(str(team)))
         if color is None:
             color = TEAM_COLORS.get(team, UNKNOWN_COLOR)
-        painter.setPen(QPen(color, line_width))
+        pen = QPen(color, line_width)
+        painter.setPen(pen)
         rect = QRectF(dx + x1 * scale, dy + y1 * scale, (x2 - x1) * scale, (y2 - y1) * scale)
         painter.drawRect(rect)
         team_label = TEAM_NAMES.get(team, "未分配") if team is not None else "未分配"
-        painter.drawText(QPointF(rect.left(), rect.top() - 4),
-                         f"#{det['track_id']} {team_label} {det.get('conf', 0):.2f}")
+        text = f"#{det['track_id']} {team_label} {det.get('conf', 0):.2f}"
+        # 深色药丸底 + 彩色左缘：保证亮画面上的标签可读
+        tw = metrics.horizontalAdvance(text)
+        th = metrics.height()
+        pill_top = rect.top() - th - 8
+        if pill_top < 2:
+            pill_top = rect.top() + 2
+        pill = QRectF(rect.left(), pill_top, tw + 12, th + 4)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(10, 12, 16, 175))
+        painter.drawRoundedRect(pill, 4, 4)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(QPen(color, 1))
+        painter.drawLine(QPointF(pill.left(), pill.top()), QPointF(pill.left(), pill.bottom()))
+        painter.setPen(QColor("#F2F4F8"))
+        painter.drawText(QPointF(pill.left() + 6, pill_top + th), text)
 
 
 def draw_points(painter: QPainter, points: list[tuple[float, float]], video_w, video_h,
