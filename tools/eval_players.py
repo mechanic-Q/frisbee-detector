@@ -14,12 +14,17 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from collections import Counter
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from frisbee_analyzer import protocol  # noqa: E402
+
 
 def load(p: str) -> dict:
-    return json.loads(Path(p).read_text(encoding="utf-8"))
+    return json.loads(Path(protocol.win_to_wsl(p)).read_text(encoding="utf-8"))
 
 
 def describe(doc: dict, label: str) -> dict:
