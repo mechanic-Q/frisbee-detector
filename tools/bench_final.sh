@@ -4,6 +4,7 @@
 # 每阶段前等待 GPU 完全空闲（包括 GUI 会话等未走队列的占用者）。
 set -u
 cd /mnt/e/frisbee-detector
+export MLFLOW_ALLOW_FILE_STORE=true   # rfdetr[train] 带入的新版 mlflow 默认禁用 file store，会杀训练回调
 LOG=data/bili_final_test
 PROD_WEIGHTS=/home/lmr/comfy/ComfyUI/runs/detect/runs/bili_prod_v8sp2/weights
 
