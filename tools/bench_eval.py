@@ -100,9 +100,17 @@ def eval_rfdetr():
         map5095, map50 = float(E.stats[0]), float(E.stats[1])
     else:
         map5095 = map50 = 0.0
-    params = sum(p.numel() for p in model.model.parameters()) / 1e6
+    params = None
+    for holder in (model.model, model.model.model if hasattr(model.model, "model") else None, model):
+        if holder is None:
+            continue
+        try:
+            params = sum(p.numel() for p in holder.parameters()) / 1e6
+            break
+        except Exception:
+            continue
     return {"mAP50": round(map50, 4), "mAP50-95": round(map5095, 4),
-            "params_M": round(params, 2), "fps_1080p_equivalent": infer_fps,
+            "params_M": round(params, 2) if params else None, "fps_1080p_equivalent": infer_fps,
             "resolution": 672, "weights": ck,
             "note": "fps 为 672 分辨率直推，与 ultralytics@1280 不同分辨率，仅供量级参考"}
 
