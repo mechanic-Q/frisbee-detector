@@ -1,0 +1,83 @@
+"""叠加层绘制：球员框+队伍色、标定点、场地线。坐标换算（letterbox）供点击反查复用。"""
+
+from __future__ import annotations
+
+from PySide6.QtCore import QPointF, QRectF
+from PySide6.QtGui import QColor, QFont, QPainter, QPen
+
+# team_id 编码与 frisbee_analyzer/tools 惯例一致：0=红 1=蓝 2=裁判 3=旁观，None=未分配
+TEAM_COLORS = {
+    0: QColor(255, 72, 72),
+    1: QColor(80, 148, 255),
+    2: QColor(255, 214, 64),
+    3: QColor(170, 170, 170),
+}
+TEAM_NAMES = {0: "红队", 1: "蓝队", 2: "裁判", 3: "旁观"}
+UNKNOWN_COLOR = QColor(230, 230, 230)
+
+
+def letterbox(video_w: float, video_h: float, widget_w: float, widget_h: float):
+    """等比缩放并居中：返回 (scale, offset_x, offset_y)。"""
+    if video_w <= 0 or video_h <= 0:
+        return 1.0, 0.0, 0.0
+    scale = min(widget_w / video_w, widget_h / video_h)
+    return scale, (widget_w - video_w * scale) / 2, (widget_h - video_h * scale) / 2
+
+
+def widget_to_video(px: float, py: float, video_w: float, video_h: float,
+                    widget_w: float, widget_h: float) -> tuple[float, float]:
+    scale, dx, dy = letterbox(video_w, video_h, widget_w, widget_h)
+    return (px - dx) / scale, (py - dy) / scale
+
+
+def draw_detections(painter: QPainter, dets: list[dict], video_w: float, video_h: float,
+                    widget_w: float, widget_h: float, team_colors: dict | None = None,
+                    line_width: float = 2.0) -> None:
+    """按 widget 尺寸画当前帧的球员框。team_colors = doc["team_colors"]（如 {"0":"red"}）。"""
+    scale, dx, dy = letterbox(video_w, video_h, widget_w, widget_h)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    font = QFont()
+    font.setPixelSize(max(11, int(12 * scale * 0.6) + 8))
+    painter.setFont(font)
+    named = {"red": QColor(255, 72, 72), "blue": QColor(80, 148, 255),
+             "other": QColor(170, 170, 170)}
+    for det in dets:
+        x1, y1, x2, y2 = det["bbox"]
+        team = det.get("team_id")
+        color = named.get((team_colors or {}).get(str(team)))
+        if color is None:
+            color = TEAM_COLORS.get(team, UNKNOWN_COLOR)
+        painter.setPen(QPen(color, line_width))
+        rect = QRectF(dx + x1 * scale, dy + y1 * scale, (x2 - x1) * scale, (y2 - y1) * scale)
+        painter.drawRect(rect)
+        team_label = TEAM_NAMES.get(team, "未分配") if team is not None else "未分配"
+        painter.drawText(QPointF(rect.left(), rect.top() - 4),
+                         f"#{det['track_id']} {team_label} {det.get('conf', 0):.2f}")
+
+
+def draw_points(painter: QPainter, points: list[tuple[float, float]], video_w, video_h,
+                widget_w, widget_h, color: QColor = QColor(64, 255, 128)) -> None:
+    """标定点（视频坐标）绘制为圆点+序号。"""
+    scale, dx, dy = letterbox(video_w, video_h, widget_w, widget_h)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    font = QFont()
+    font.setPixelSize(13)
+    painter.setFont(font)
+    for i, (vx, vy) in enumerate(points, start=1):
+        cx, cy = dx + vx * scale, dy + vy * scale
+        painter.setPen(QPen(color, 2))
+        painter.drawEllipse(QPointF(cx, cy), 6, 6)
+        painter.drawText(QPointF(cx + 9, cy - 6), str(i))
+
+
+def draw_polylines(painter: QPainter, polylines_px: list[list[tuple[float, float]]],
+                   video_w, video_h, widget_w, widget_h,
+                   color: QColor = QColor(64, 255, 128), width: float = 1.6) -> None:
+    """画若干条视频坐标折线（如标定后的场地线投影）。"""
+    scale, dx, dy = letterbox(video_w, video_h, widget_w, widget_h)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setPen(QPen(color, width))
+    for line in polylines_px:
+        for a, b in zip(line, line[1:]):
+            painter.drawLine(QPointF(dx + a[0] * scale, dy + a[1] * scale),
+                             QPointF(dx + b[0] * scale, dy + b[1] * scale))
