@@ -34,7 +34,8 @@ streamlit run tools/review_web.py -- --img-dir data/fp_spotcheck_50/
 python3 tools/review_desktop.py --model runs/detect/frisbee_det_s_v3/weights/best.pt --source data/fp_spotcheck_50/ --conf 0.35
 yololabeler data/fp_spotcheck_50/
 
-# Collect hard negatives via VLM (GLM-4V-Flash)
+# Collect hard negatives via VLM (GLM-4V-Flash; needs GLM_API_KEY env var — never commit the key)
+export GLM_API_KEY=<your-zhipu-key>
 python3 tools/collect_hard_negatives.py \
   --model runs/detect/frisbee_det_s_v3/weights/best.pt \
   --videos movie/25866279684-1-192_55-56min.mp4 \

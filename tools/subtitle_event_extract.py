@@ -3,6 +3,7 @@
 输出: data/bili_final_test/out/sub_events.json + sub_events_readable.txt
 """
 import json
+import os
 import re
 import time
 from pathlib import Path
@@ -14,9 +15,7 @@ SRT = ROOT / "data/bili_final_test/subs/BV1hTtpeyEzb.ai-zh.srt"
 OUT = Path(__file__).resolve().parents[1] / "results"
 OUT.mkdir(parents=True, exist_ok=True)
 
-import re as _re
-key = _re.search(r'GLM_API_KEY = "([^"]+)"',
-                 (ROOT / "tools/vlm_review_crops.py").read_text()).group(1)
+key = os.environ.get("GLM_API_KEY", "")
 client = OpenAI(api_key=key, base_url="https://open.bigmodel.cn/api/paas/v4")
 
 PROMPT = """你是极限飞盘比赛解说文本的事件抽取器。下面是一段带时间戳的比赛字幕（可能是观众闲聊+解说的混合，ASR 有错字）。

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import os
 import sys
 from pathlib import Path
 
@@ -20,7 +21,7 @@ from tools.annotation_core import (
 )
 
 # ── GLM-4V-Flash VLM client (reused across calls) ──────────────────────────
-_GLM_API_KEY = "04b4a3613cb9da29764862eb6c1067e5.KXDv17RG8zCeshyv"
+_GLM_API_KEY = os.environ.get("GLM_API_KEY", "")
 _GLM_CLIENT = None
 _VLM_CACHE: dict[str, bool | None] = {}
 

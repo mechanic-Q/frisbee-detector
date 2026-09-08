@@ -6,6 +6,7 @@
       + role_stats.json + 抽检图板 out/role_spotcheck.jpg
 """
 import json
+import os
 import re
 import time
 from collections import Counter
@@ -26,8 +27,7 @@ CLS_RED, CLS_BLUE, CLS_REF, CLS_IGN = 0, 1, 2, 3
 # GLM 仲裁（限额，只处理低置信框）
 import base64
 from openai import OpenAI
-key = re.search(r'GLM_API_KEY = "([^"]+)"',
-                (ROOT / "tools/vlm_review_crops.py").read_text()).group(1)
+key = os.environ.get("GLM_API_KEY", "")
 vlm = OpenAI(api_key=key, base_url="https://open.bigmodel.cn/api/paas/v4")
 VLM_BUDGET = 400
 

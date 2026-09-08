@@ -588,9 +588,9 @@ python3 inference/predict_track.py \
 ffmpeg -y -i runs/track/clip_20-23min/clip_20-23min_tracked.mp4 \
   -vf "select=eq(n\,500)" -vsync vfr /tmp/track_eval.jpg 2>/dev/null
 python3 -c "
-import base64, sys
+import base64, os, sys
 from openai import OpenAI
-client = OpenAI(api_key='04b4a3613cb9da29764862eb6c1067e5.KXDv17RG8zCeshyv', base_url='https://open.bigmodel.cn/api/paas/v4')
+client = OpenAI(api_key=os.environ['GLM_API_KEY'], base_url='https://open.bigmodel.cn/api/paas/v4')
 with open('/tmp/track_eval.jpg', 'rb') as f:
     b64 = base64.b64encode(f.read()).decode()
 r = client.chat.completions.create(model='glm-4v-flash', messages=[{

@@ -4,6 +4,7 @@
 """
 import base64
 import json
+import os
 import re
 from pathlib import Path
 
@@ -16,8 +17,7 @@ VID = ROOT / "movie/2024城市飞盘俱乐部锦标赛『决赛』【北京大�
 OUT = Path(__file__).resolve().parents[1] / "results"
 OUT.mkdir(parents=True, exist_ok=True)
 
-key = re.search(r'GLM_API_KEY = "([^"]+)"',
-                (ROOT / "tools/vlm_review_crops.py").read_text()).group(1)
+key = os.environ.get("GLM_API_KEY", "")
 client = OpenAI(api_key=key, base_url="https://open.bigmodel.cn/api/paas/v4")
 
 # 顶部记分牌 ROI（1080P，从探针帧看在顶部中央偏左，先取宽条再由帧差定位）

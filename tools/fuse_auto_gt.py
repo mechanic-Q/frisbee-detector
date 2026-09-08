@@ -3,6 +3,7 @@
 输出: results/auto_gt_events.json
 """
 import json
+import os
 import re
 import time
 from pathlib import Path
@@ -12,8 +13,7 @@ from openai import OpenAI
 ROOT = Path(__file__).resolve().parents[1]
 RES = ROOT / "results"
 
-key = re.search(r'GLM_API_KEY = "([^"]+)"',
-                Path("/mnt/e/frisbee-detector/tools/vlm_review_crops.py").read_text()).group(1)
+key = os.environ.get("GLM_API_KEY", "")
 client = OpenAI(api_key=key, base_url="https://open.bigmodel.cn/api/paas/v4")
 
 PROMPT = """你是极限飞盘解说转写的事件抽取器。从下列带时间戳的转写句子中抽取事件，输出 JSON 数组：
