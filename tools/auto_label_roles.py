@@ -1,12 +1,14 @@
 """E4'：球员角色全自动标注管线（零人工）。
 在 WSL 运行: python3 tools/auto_label_roles.py
-三通道: ①HSV 颜色+条纹规则（主） ②SigLIP 零样本投票（交叉） ③GLM-4V 仲裁分歧框（限额）
+双通道: ①HSV 颜色+黑黄条纹规则（主，E4' 验证） ②GLM-4V 仲裁低置信/裁判候选框（限额）。
+（SigLIP 交叉投票通道未实现——team.py 实测 SigLIP 在本素材按景别分簇 0.52，已弃用该路线）
 输入: data/bili_final_test/player_frames/*.jpg + player_labels/*.txt (yolo26x person 预标)
 输出: data/bili_final_test/role_labels/*.txt (0=player-red 1=player-blue 2=referee 3=spectator/ignore)
-      + role_stats.json + 抽检图板 out/role_spotcheck.jpg
+      + role_stats.json + 抽检图板 results/role_spotcheck.jpg
 """
 import json
 import os
+import random
 import re
 import time
 from collections import Counter
@@ -167,8 +169,9 @@ def main():
         if not boxes:
             continue
         labels = color_channel(img, boxes)
-        # 低置信框 + 所有裁判候选 强制 VLM 仲裁
+        # 低置信框 + 所有裁判候选 强制 VLM 仲裁；洗牌避免预算按文件序系统性偏耗
         low = [i for i, (l, c) in enumerate(labels) if c < 0.5 or l == CLS_REF]
+        random.Random(42).shuffle(low)  # 可复现洗牌：预算耗尽时不系统性偏向后段帧
         if low and vlm_budget > 0:
             fixed, vlm_budget = vlm_arbitrate(img, boxes, low, vlm_budget)
             for bi, v in fixed.items():

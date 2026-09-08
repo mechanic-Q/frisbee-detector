@@ -82,3 +82,6 @@ venv/
 # 本地媒体与研究数据
 /movie/
 /frisbee-data/
+results/synth_preview/*
+!results/synth_preview/*.json
+!results/synth_preview/synth_000010.jpg

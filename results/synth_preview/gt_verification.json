@@ -1,0 +1,95 @@
+{
+ "summary": {
+  "samples": 12,
+  "samples_with_lines_in_frame": 9,
+  "mean_contrast_online_vs_offline": 96.0,
+  "min_contrast": 51.8,
+  "verdict": "PASS"
+ },
+ "per_sample": [
+  {
+   "sample": "synth_000001",
+   "in_frame_samples": 151,
+   "online_brightness": 238.9,
+   "offline_brightness": 101.3,
+   "contrast": 137.6
+  },
+  {
+   "sample": "synth_000002",
+   "in_frame_samples": 99,
+   "online_brightness": 213.9,
+   "offline_brightness": 117.5,
+   "contrast": 96.4
+  },
+  {
+   "sample": "synth_000003",
+   "in_frame_samples": 67,
+   "online_brightness": 223.4,
+   "offline_brightness": 101.5,
+   "contrast": 122.0
+  },
+  {
+   "sample": "synth_000004",
+   "in_frame_samples": 165,
+   "online_brightness": 195.8,
+   "offline_brightness": 126.2,
+   "contrast": 69.7
+  },
+  {
+   "sample": "synth_000005",
+   "in_frame_samples": 21,
+   "online_brightness": 101.8,
+   "offline_brightness": 100.7,
+   "contrast": 1.1
+  },
+  {
+   "sample": "synth_000006",
+   "in_frame_samples": 88,
+   "online_brightness": 201.8,
+   "offline_brightness": 94.7,
+   "contrast": 107.1
+  },
+  {
+   "sample": "synth_000007",
+   "in_frame_samples": 29,
+   "online_brightness": 160.0,
+   "offline_brightness": 79.4,
+   "contrast": 80.6
+  },
+  {
+   "sample": "synth_000008",
+   "in_frame_samples": 32,
+   "online_brightness": 207.3,
+   "offline_brightness": 171.4,
+   "contrast": 35.9
+  },
+  {
+   "sample": "synth_000009",
+   "in_frame_samples": 57,
+   "online_brightness": 128.2,
+   "offline_brightness": 76.4,
+   "contrast": 51.8
+  },
+  {
+   "sample": "synth_000010",
+   "in_frame_samples": 198,
+   "online_brightness": 189.6,
+   "offline_brightness": 124.4,
+   "contrast": 65.2
+  },
+  {
+   "sample": "synth_000011",
+   "in_frame_samples": 145,
+   "online_brightness": 218.2,
+   "offline_brightness": 136.4,
+   "contrast": 81.8
+  },
+  {
+   "sample": "synth_000012",
+   "in_frame_samples": 62,
+   "online_brightness": 233.2,
+   "offline_brightness": 101.1,
+   "contrast": 132.2
+  }
+ ]
+}
