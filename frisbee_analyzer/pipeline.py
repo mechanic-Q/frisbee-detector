@@ -66,6 +66,16 @@ def run(args, stream=None) -> int:
         team_colors = assign_teams(frames, video, cancel_check=None,
                                    log=lambda m: protocol.emit(protocol.log(m), stream))
 
+    # 场内过滤（默认开启）：观众区/过小框不进入产物——方案 §8.1 场地过滤近似
+    from .filters import filter_dets
+
+    fh = info["height"]
+    total_before = sum(len(d) for d in frames.values())
+    for key, dets in frames.items():
+        frames[key] = filter_dets(dets, fh, min_height=fh * 0.083)
+    total_after = sum(len(d) for d in frames.values())
+    protocol.emit(protocol.log(f"field filter: {total_before} -> {total_after} dets"), stream)
+
     out_dir = Path(win_to_wsl(args.output_dir)) if args.output_dir else Path("runs/gui_analysis") / Path(video).stem
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "tracks.json"
