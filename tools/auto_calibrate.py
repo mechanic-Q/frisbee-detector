@@ -20,40 +20,41 @@ FIELD_W, FIELD_H = 100.0, 37.0   # WFDF 米
 MAX_LINES = 10
 
 
-def scene_keyframes(video: Path, max_scenes=14):
-    """PySceneDetect 分段；每段取中点帧，返回 [(scene_idx, sec, frame_bgr)]"""
-    from scenedetect import detect, ContentDetector
+def scene_keyframes(video: Path, interval_s=240.0, topk=10):
+    """单机位连续摇拍无硬切 → 按时间等间隔采样，返回白线可见度 topk 帧 [(rank, sec, frame)]"""
     cap = cv2.VideoCapture(str(video))
     fps = cap.get(cv2.CAP_PROP_FPS)
-    scene_list = detect(str(video), ContentDetector())
-    cap.release()
-    scenes = [(i, (s.get_frames() + e.get_frames()) // 2 / fps)
-              for i, (s, e) in enumerate(scene_list)]
-    print(f"scenes: {len(scenes)}")
-    out = []
-    cap = cv2.VideoCapture(str(video))
-    for i, sec in scenes[:max_scenes]:
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    dur = total / fps
+    samples = []
+    sec = 10.0
+    while sec < dur - 5:
         cap.set(cv2.CAP_PROP_POS_FRAMES, int(sec * fps))
         ok, frame = cap.read()
         if ok:
-            out.append((i, sec, frame))
+            mask = whitemask(frame)
+            ratio, n, _ = line_score(mask)
+            samples.append((n, ratio, sec, frame))
+        sec += interval_s
     cap.release()
-    return out
+    samples.sort(key=lambda s: (-s[0], -s[1]))
+    return [(i, s[2], s[3]) for i, s in enumerate(samples[:topk])]
 
 
 def whitemask(img):
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     S, V = hsv[..., 1], hsv[..., 2]
-    mask = ((S < 70) & (V > 170)).astype(np.uint8) * 255
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
+    mask = ((S < 80) & (V > 165)).astype(np.uint8) * 255
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_DILATE, np.ones((3, 3), np.uint8))
     return mask
 
 
 def line_score(mask):
     """白线可见度评分：白像素占比 + Hough 线段数"""
     ratio = mask.mean() / 255
-    lines = cv2.HoughLinesP(mask, 1, np.pi / 180, threshold=120,
-                            minLineLength=mask.shape[1] // 8, maxLineGap=12)
+    lines = cv2.HoughLinesP(mask, 1, np.pi / 180, threshold=80,
+                            minLineLength=mask.shape[1] // 14, maxLineGap=25)
     n = 0 if lines is None else len(lines)
     return ratio, n, lines
 
@@ -129,8 +130,9 @@ def intersections(merged):
                         continue
                     P = np.array(pts)
                     h, w = 1080, 1920
-                    if not ((P[:, 0] > -w * 0.7).all() and (P[:, 0] < w * 1.7).all()
-                            and (P[:, 1] > -h).all() and (P[:, 1] < h * 2).all()):
+                    # 硬约束：四角必须都在画面内（防杂物线假阳性）
+                    if not ((P[:, 0] >= 0).all() and (P[:, 0] < w).all()
+                            and (P[:, 1] >= 0).all() and (P[:, 1] < h).all()):
                         continue
                     # 面积（shifted shoelace），要够大像块场地
                     x, y = P[:, 0], P[:, 1]
