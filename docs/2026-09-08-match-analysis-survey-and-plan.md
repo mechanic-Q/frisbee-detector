@@ -1,0 +1,468 @@
+# 极限飞盘赛事识别软件 — 穷举式调研报告与技术方案
+
+日期：2026-09-08
+状态：调研完成，待评审
+范围：5 路并行穷举式开源调研（球员检测/跟踪/分队、飞盘追踪、单应性/测速、事件统计/VLM、GUI/同类软件）+ 本地项目现状盘点。star 数为 2026-09 抓取值。
+
+---
+
+## 0. 结论速览（TL;DR）
+
+1. **极限飞盘视觉分析在开源世界是空白市场。** 没有任何可用的"飞盘球员检测/跟踪/分队/比分"开源项目；最完整的同类项目是一个 0 star 的 [ccheever/frisbee-tracker](https://github.com/ccheever/frisbee-tracker)（MIT，2026-04 新建，架构可参考）和几个学生项目。本项目的飞盘检测器在这个细分领域已是领先水平。
+2. **技术路线不需要推倒重来，但需要大幅扩展。** 现有资产（YOLOv8s-P2 飞盘检测 + SAHI + 手动单应性标定 + 单目标 Kalman + Streamlit 复核工具 + GLM-4V 硬负样本流水线）全部保留复用；缺的是球员侧（检测/跟踪/分队）、事件统计层、和真正的产品 GUI。
+3. **核心选型**（均有 MIT/Apache 可商用实现，全部有落地先例）：
+   - 球员检测：**roboflow/sports 的 DFL 足球权重零样本试跑 → 自标 500–3000 帧微调**
+   - 球员跟踪：**ultralytics 内置 BoT-SORT**（固定机位关 GMC、不开 ReID）
+   - 队伍分类：**SigLIP 嵌入 + UMAP + KMeans**（照搬 roboflow/sports `sports/common/team.py`）+ 颜色 KMeans 兜底 + 开球半场位置先验校正
+   - 飞盘轨迹：**保留 YOLO+SAHI 主路，候选第二路 TrackNetV3（MIT，遮挡修复），离线两遍式轨迹重建 + 抛体物理外推**
+   - 速度/距离：**静态单应性（固定机位）+ 世界坐标平滑 + 低空段限定 + 误差条**（单目诚实精度 ±10–20%）
+   - 交换手/攻守转换：**几何规则主判定**（Tryolabs 持球算法骨架：最近邻 + 连续 N 帧惯性）+ clip 分类器过滤 + **人工复核队列**
+   - 比分：**几何谓词**（接住点 ∈ 对方得分区多边形）+ 每次得分人工一键确认（记分牌 OCR 对业余比赛不适用）
+   - GUI：**PySide6 桌面应用**（QVideoSink 逐帧管线 + QGraphicsScene 叠加），分析任务用 QProcess 独立进程 + JSON-lines 进度协议；Streamlit 退居内部工具
+   - VLM（可选后置）：**Qwen2.5-VL-7B / GLM-4.1V-9B（量化，16GB 可跑）**，只做镜头切换/丢盘后的场景重理解，不做细粒度判定
+4. **一个重要纠错**：此前计划引用的 "UltimateTracker"（CVPRW 2023 极限飞盘跟踪基准）**不存在**——repo 404、无存档、CVSports 2023 论文目录无此文。勿再引用。
+
+---
+
+## 1. 现状盘点（本地项目）
+
+### 1.1 可复用资产
+
+| 资产 | 位置 | 状态 |
+|---|---|---|
+| 飞盘检测器（10+ 版本，默认 `frisbee_det_p2_shadow_v1`） | `runs/detect/`, `models/train.py` | 可用，P2 小目标架构 |
+| SAHI 切片推理 | `inference/predict_video.py` | 可用，但与追踪管线割裂 |
+| 单应性标定（4 点 getPerspectiveTransform + 鸟瞰图 + JSON 持久化） | `utils/homography.py`, `tools/calibrate_field.py`, `configs/homography/*.json` | 可用，需升级 RANSAC 多点 |
+| 单目标 Kalman 追踪 + 候选评分 + 世界坐标速度拒绝阈值（>25 m/s） | `inference/predict_track.py`, `utils/tracker_utils.py` | 可用，仅单目标 4 状态 |
+| 标注复核工具（Streamlit×2 + yololabeler 导出 + GLM-4V 硬负样本） | `tools/review_*.py`, `tools/collect_hard_negatives.py` | 可复用为球员标注底座 |
+| 数据规范（`exclude_ranges`、naming-glossary、防泄露规则） | `docs/conventions/` | 继续严格执行 |
+| 训练管线（P2 变体、tmux 流程、防 OOM 参数） | `models/train.py` | 直接复用 |
+
+### 1.2 需要修的问题
+
+- `predict_video.py`（SAHI）与 `predict_track.py`（Kalman）是两条割裂管线，追踪不走 SAHI——小目标漏检会断轨迹。
+- 文档与代码不一致：rd-journey 称 Kalman 已升 6 状态，实际 `tracker_utils.py` 仍是 `cv2.KalmanFilter(4, 2)`。
+- `vlm_review_crops.py`、`collect_hard_negatives.py` **硬编码了 API key**，必须移到环境变量。
+- `WIKI.md`、`QMR-web-*`、`package.json`（camofox-browser）是混入仓库的无关 AI 工具链资产，建议移出。
+- `AGENTS.md` 部分内容已过时（仍称 v3 为最佳模型；实际默认已是 P2 shadow_v1）。
+- `configs/paths.py` 默认 WSL 路径（/mnt/e/...），Windows 原生运行需 env 覆盖。
+
+### 1.3 与目标的差距
+
+| 目标需求 | 差距 |
+|---|---|
+| GUI | 无产品级 GUI（只有内部复核工具）；Streamlit 做不了视频逐帧叠加（`st.video` 拿不到帧号、无 overlay、后台线程受限） |
+| 队伍区分 | 模型只有 frisbee 单类；无球员检测、无 MOT、无分队 |
+| 速度/距离 | 有像素→米映射与单点速度，无显式统计输出；无高度误差处理；标定只覆盖 1 个视频且不抗机位移动 |
+| 交换手统计 | 完全没有（无持盘人判定） |
+| 比分统计 | 完全没有（无得分区事件检测） |
+
+---
+
+## 2. 五路调研核心结论
+
+### 2.1 球员检测 / 多目标跟踪 / 队伍分类
+
+**关键仓库：**
+
+| 仓库 | Star | License | 要点 |
+|---|---|---|---|
+| [roboflow/sports](https://github.com/roboflow/sports) | 5.3k | MIT | **架构蓝本**。球员/球/守门员/裁判 4 类 YOLO 检测（DFL 德甲数据）、SigLIP 分队、BallTracker+InferenceSlicer 球跟踪、32 关键点单应性、雷达图 |
+| [abdullahtarek/football_analysis](https://github.com/abdullahtarek/football_analysis) | 1.0k | 无 | 教程级完整管线；两层 KMeans 球衣分队（上半身裁剪→分离背景→全帧 2 簇），可作 fallback |
+| [roboflow/trackers](https://github.com/roboflow/trackers) | 3.7k | Apache-2.0 | ByteTrack 干净重实现；官方基准显示 **ByteTrack 在 SportsMOT(73.0)/SoccerNet(84.0) 是最好跟踪器** |
+| [mikel-brostrom/boxmot](https://github.com/mikel-brostrom/boxmot) | 8.3k | **AGPL-3.0** | SOTA MOT 集合 + ReID；AGPL 有传染性，仅在接受开源义务或后置采用 |
+| [KaiyangZhou/deep-person-reid](https://github.com/KaiyangZhou/deep-person-reid) | 4.9k | MIT | OSNet ReID；行人权重与体育场景存在显著 domain gap，只作弱线索 |
+| [MCG-NJU/SportsMOT](https://github.com/MCG-NJU/SportsMOT) | 226 | 数据 CC BY-4.0 | 240 序列/160 万框球员跟踪基准，可用于跟踪器评测 |
+| [SoccerNet/sn-gamestate](https://github.com/SoccerNet/sn-gamestate) | 449 | **GPL-3.0** | 最完整学术参考管线（检测+ReID+跟踪+每帧标定+号码 OCR）；**只学思路不可抄码** |
+| [mkoshkina/jersey-number-pipeline](https://github.com/mkoshkina/jersey-number-pipeline) | — | — | 球衣号 OCR（曲棍球 91.4%）；业余飞盘常无号码，后置 |
+
+**结论：**
+
+- **跟踪**：直接用 ultralytics `model.track(tracker="botsort.yaml")`。固定机位：`gmc_method: none`、`with_reid: False`；`track_buffer≈50`（25fps 下 2 秒遮挡容忍）。球员出画再入场 ID 跳变成为痛点时，再开 ReID（appearance_thresh≥0.85）或换 boxmot。
+- **分队**（推荐三层递进）：
+  1. 主方案：SigLIP（`google/siglip-base-patch16-224`）嵌入 + UMAP(3) + KMeans(2)，每 60 帧 fit 一次——roboflow/sports 已验证，对宽松队服/花哨图案比裸颜色鲁棒，零标注；
+  2. 兜底：上半身颜色 KMeans（abdullahtarek 式），速度快可交叉验证；
+  3. 校正：开球 pull 时两队各占半场 → 用 track 平均 x 坐标先验自动翻转 KMeans 标签（SoccerNet GSR 思路）。裁判由检测类直接排除。
+- **姿态**：MVP 不需要。二期用 `yolo11s-pose.pt` 零样本试跑，服务持盘判定（手腕关键点距离）和倒地判定。
+- **数据量**：先零样本试跑 DFL 足球权重；微调 500–1000 帧可达可用，生产级 1500–3000 帧（含 100–200 个裁判框），用现有 review 工具半自动标注（约 2–5 人日）。
+
+### 2.2 飞盘定位与轨迹重建
+
+**关键仓库：**
+
+| 仓库 | Star | License | 要点 |
+|---|---|---|---|
+| [qaz812345/TrackNetV3](https://github.com/qaz812345/TrackNetV3) | 302 | MIT | **候选第二路**。8 帧热力图回归 + InpaintNet 遮挡轨迹修复，羽毛球 Acc 97.5%、25 FPS，活跃维护，预训练权重可迁移 |
+| [nttcom/WASB-SBDT](https://github.com/nttcom/WASB-SBDT) | 190 | MIT | SoccerNet 2023 球跟踪冠军，5 种运动验证泛化，时序一致性推理离线友好 |
+| [roboflow/trackers](https://github.com/roboflow/trackers) | 3.7k | Apache-2.0 | 关联器底座（ByteTrack 思想：低分框二次关联，正对半遮挡飞盘） |
+| [tmcclintock/FrisPy](https://github.com/tmcclintock/FrisPy) | 43 | MIT | **飞盘飞行动力学模拟器**（Hummel 2003 升力/阻力/力矩模型）——物理外推先验 + 合成轨迹增广 |
+| [obss/sahi](https://github.com/obss/sahi) | 5.5k | MIT | 已集成；SAHI+ByteTrack 组合在无人机小目标场景有多个成熟先例 |
+| [jhwang7628/monotrack](https://github.com/jhwang7628/monotrack) | 56 | — | 羽毛球 2D/3D 轨迹重建全管线，研究代码 |
+
+**结论：**
+
+- 飞盘社区无成熟方案（UltimateTracker 不存在；其余全是 0–2 star 学生项目）。
+- **推荐离线两遍式架构**（我们是赛后分析，可双向利用未来帧——在线方案做不到的遮挡修复能力）：
+  - Pass 1：全视频逐帧候选 = YOLO+SAHI（近景高精度框）⊕ TrackNetV3 热图（远景/模糊/遮挡回忆）双路融合；
+  - Pass 2：全局轨迹重建 = tracklet 链接（图匹配）+ 双向 Kalman/RTS 平滑 + 抛体物理外推补洞 + 插值。
+- 分阶段运动模型：持盘段（挂接持盘人速度）→ 飞行段（重力+气动外推）→ 落地段（强阻尼）→ re-find 判据（外推邻域 + 外观 + 时间连续性）。
+- **决策门**：先用羽毛球 ckpt + 自标 5000–10000 帧点标注（1–2 秒/帧，可用现有检测器预标）快速验证 TrackNetV3 迁移收益，再决定是否深度投入；近景大目标 YOLO 路已够，TrackNet 的收益集中在远景小目标与遮挡。
+- 训练帧严禁来自测试视频（`exclude_ranges` 规则照旧）。
+
+### 2.3 场地坐标映射与速度/距离
+
+**关键仓库：**
+
+| 仓库 | Star | License | 要点 |
+|---|---|---|---|
+| [roboflow/sports](https://github.com/roboflow/sports) | 5.3k | MIT | 关键点检测（YOLOv8x-pose 32 点）→ `findHomography(RANSAC)` → ViewTransformer 批量投影 |
+| [mguti97/PnLCalib](https://github.com/mguti97/PnLCalib) | 105 | **GPL-2.0** | 点+线联合优化场地配准（WACV 2024），精度高但 license 传染 |
+| [NikolasEnt/soccernet-calibration-sportlight](https://github.com/NikolasEnt/soccernet-calibration-sportlight) | 63 | 无 | SoccerNet 2023 冠军 RayMeshField，精度天花板但重 |
+| [lood339/two_point_calib](https://github.com/lood339/two_point_calib) | 56 | — | PTZ 相机两点标定法，摇镜头维持标定的轻量参考 |
+| [cemunds/awesome-sports-camera-calibration](https://github.com/cemunds/awesome-sports-camera-calibration) | — | — | 本领域最全文献/代码索引 |
+| [syncom/psfv](https://github.com/syncom/psfv) | 1 | MIT | 棒球测速：**速度=已知真实距离÷帧数/帧率**，对单应误差最鲁棒的"平均速度"范式 |
+| [captainfffsama/LabelHomography](https://github.com/captainfffsama/LabelHomography) | 13 | BSD-3 | 点击两点图标注单应导出 json 的 Qt 工具，交互设计参考 |
+
+**结论：**
+
+- **固定机位：静态单应性一劳永逸**（一次手动标定 + 定期把场地线反投画面目检）。转播摇镜头：镜头切换检测 + 每 N 帧重估（起步甚至可以"切换后人工快标/复用已标定机位库"）；深度单应性（HomographyNet 系）只做帧间平滑，绝对标定必须靠场线锚定，**不引入**。
+- 飞盘场只有 6 条直线 + 2 砖标（WFDF：100×37m，得分区 18m 深；美国 USAU 25 码——**场地模板做成可配置**）。转播局部画面自动场线检测欠定，比足球难；**手动 4–8 点标定是当前最优**（全程 <1 分钟），自动关键点检测（照搬 roboflow 模式，8–10 点）二期再说。
+- `utils/homography.py` 升级：`getPerspectiveTransform` → `findHomography+RANSAC`，支持 6–8 点（4 角 + 得分区线端点 + 砖标），冗余点给重投影残差自检。
+- **速度/距离的天空高度问题（核心局限）**：地面单应只对地面点成立，径向误差 ≈ d·h/(H−h)。例：相机高 20m、飞盘高 3m、水平距 30m → 投影偏差 5.3m；1.5 秒飞行足以制造几十 km/h 假速度。策略：
+  1. **只在低空段（h≲2m）报地面速度**（滚地盘、低平传、出手/接盘瞬间）；
+  2. 出手点→接盘点"已知距离÷时间"的全程平均速度（psfv 范式）；
+  3. 抛体拟合 / 飞盘标准直径 27.5cm 视半径测距反演高度（二期）；
+  4. 输出必须带误差条，诚实定位单目精度 ±10–20%（商用 Hawk-Eye 多目才 ±2.5km/h）。
+
+### 2.4 交换手 / 攻守转换 / 比分 / VLM
+
+**关键仓库/证据：**
+
+| 仓库 | Star | License | 要点 |
+|---|---|---|---|
+| [tryolabs/soccer-video-analytics](https://github.com/tryolabs/soccer-video-analytics) | 305 | MIT | **持球判定算法模板**：持球人=双脚离球最近球员 + 距离阈值；队级惯性（对方须连续 N 帧控球才切换）；传球=球在同队球员间转移 |
+| [lRomul/ball-action-spotting](https://github.com/lRomul/ball-action-spotting) | 137 | MIT | SoccerNet 2023 冠军：滑窗 clip 分类 + 峰值检测，工程细节最完整 |
+| [arturxe2/t-deed](https://github.com/arturxe2/t-deed) | ≈100 | — | SoccerNet 2024 冠军，单帧级事件定位（为"视觉上极相似的相邻帧"设计，与接住/触地瞬间同构） |
+| 羽毛球回合检测文献（斯坦福 CVPR'22 轨迹重建等） | — | — | 共识：**用球的轨迹断点（速度突变/落地）定义回合边界，比识别动作可靠** |
+| [avishah3/AI-Basketball-Shot-Detection-Tracker](https://github.com/avishah3/AI-Basketball-Shot-Detection-Tracker) | ≈1k | MIT | 球-篮圈几何关系判进球——"几何谓词判得分"的先例 |
+| [royshil/scoresight](https://github.com/royshil/scoresight) | 139 | MIT | 记分牌 OCR（已停更）；业余比赛无记分牌，**不作为比分主路线** |
+| [Qwen2.5-VL-7B](https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct) / [GLM-4.1V-9B-Thinking](https://huggingface.co/zai-org/GLM-4.1V-9B-Thinking) | — | Apache-2.0 / MIT | 16GB 量化可跑的本地 VLM |
+| [MMVP "Eyes Wide Shut"](https://arxiv.org/abs/2401.06209) | — | — | **关键证据**：SOTA VLM 在空间关系等基础视觉模式上系统性失明 → "盘是否在得分区内被接住"不能交给 VLM |
+| [UltiAnalytics](https://www.ultianalytics.com/) | — | 闭源 | 飞盘社区现役统计范式：pass/drop/D/throwaway/goal 事件体系 + 人工事后改判习惯——本产品即其自动化 |
+
+**结论（四层混合架构，每层有证据支撑）：**
+
+- **第一层（主判定，几何+轨迹规则）**：持盘人 = 盘中心落入球员框手部区域（世界坐标距离阈值）+ 盘速低于阈值 + 连续 N 帧 + 惯性。飞盘"持盘"是离散布尔态（比足球模糊的"控球"更容易判准）。**交换手事件 = 持盘人 ID 变化**；**turnover = 变化且跨队**；盘触地/出界由轨迹形态学判；pull（守方端区长传开盘）触发进攻方向重置。
+- **第二层（候选过滤）**：对几何引擎候选窗口（±2s）跑 16 帧 clip 二分类（接住/掉盘），VideoMAE-Kinetics 微调每类 50–200 clip 即可用（20–30 场比赛的事件时刻点击标注即可凑齐）。
+- **第三层（低频兜底，可选 VLM）**：仅三种时刻调用本地 VLM——镜头切换后重理解控盘方、盘长时间丢失、长遮挡结束。输出只作为候选事件+证据帧进复核队列，**不进判定链**。
+- **第四层（人工复核队列，产品核心）**：低置信度事件按时间轴确认/改判/删除（Label Studio 预标-确认协议的交互范式），修正回写统计。**比分每次得分候选弹一键确认**——比分是记账型数据，错误代价最高，人工确认是产品信任的锚点。
+
+### 2.5 GUI 与整体软件形态
+
+**关键仓库：**
+
+| 仓库 | Star | License | 要点 |
+|---|---|---|---|
+| [Kinovea/Kinovea](https://github.com/Kinovea/Kinovea) | 491 | **GPL-2.0** | 最接近的成熟开源品：播放器+标绘+跟踪+标定测速桌面软件（C#）。架构教材，代码不可抄 |
+| [CVHub520/X-AnyLabeling](https://github.com/cvhub520/x-anylabeling) | ≈7.5k | GPL-3.0 | Python/Qt 视频标注交互最佳参考（播放器+帧标注+AI 辅助） |
+| [cvat-ai/cvat](https://github.com/cvat-ai/cvat) | 16.7k | MIT | Web 形态天花板，交互范式可参考 |
+| [roboflow/supervision](https://github.com/roboflow/supervision) | 49.9k | MIT | 检测结构/标注器/区域分析工具箱 |
+| [PyAV](https://github.com/PyAV-Org/PyAV) | — | — | 帧精确 seek；OpenCV 顺序读够推理用 |
+| pyqtgraph | — | MIT | Qt 原生实时图表（速度曲线/时间线） |
+
+**结论：**
+
+- **形态定为 PySide6 桌面单应用（本地优先）**。理由：核心界面是"视频播放+逐帧叠加+修正标注"，这是 Qt 系工具（X-AnyLabeling/Kinovea/LabelImg）验证十年的场景；Streamlit 的 `st.video` 拿不到帧号、无 overlay、后台线程拿不到 ScriptRunContext——三大硬伤正好全踩；FastAPI+Vue 要养两套技术栈；纯 Python 与现有 13 个脚本零摩擦；PySide6 LGPL 无商用风险。
+- 视频渲染：**QVideoSink → QImage → QPainter 逐帧管线**（AraViQ6 封装可起步），叠加层用 QGraphicsScene（轨迹、速度标签、比分板、标定交互）。
+- **分析任务用 QProcess 拉独立 worker 进程**，JSON-lines 协议报进度/取消——相当于 GUI 内建版 tmux，worker 崩溃不拖垮 UI，天然规避 GIL/GPU 冲突；不引入 Celery/Redis（单机桌面过重）。
+- 视频导出：画帧 → rawvideo 管道喂 ffmpeg（libx264 veryfast 或 `h264_nvenc`），比 `cv2.VideoWriter` 快约 2 倍。
+- 存储：SQLite（项目/视频/事件/复核状态）+ 每视频 JSON（COCO-video 风格轨迹 + 自定义事件层），可导出 MOT 格式；事件字段沿用现有 naming-glossary（`review_status`、`reviewer_decision` 等）。
+
+---
+
+## 3. 总体架构设计
+
+```
+┌────────────────────────── PySide6 桌面应用 ──────────────────────────┐
+│  播放器+叠加层    时间线事件轨    复核对话框    仪表盘(pyqtgraph)      │
+│  (QVideoSink+    (得分/turnover/  (低置信度     (比分板/速度曲线/     │
+│   QGraphicsScene  交换手标注)      事件队列)     场地热图)            │
+└───────────────┬──────────────────────────────────────────────────────┘
+                │ QProcess + JSON-lines（进度/取消/结果）
+┌───────────────▼──────────── 分析 worker 进程 ───────────────────────┐
+│ video_io:  解码(OpenCV顺序/PyAV seek) → 逐帧 → ffmpeg pipe 导出叠加视频│
+│ engine:    ①飞盘检测(YOLO-P2+SAHI) ②球员检测(YOLO 4类)               │
+│            ③BoT-SORT球员跟踪 ④SigLIP分队 ⑤轨迹重建(离线两遍+物理外推) │
+│            ⑥单应性投影(utils/homography升级版)                       │
+│ events:    持盘人判定 → 交换手/turnover → 得分谓词 → pull重置        │
+│            → clip分类器过滤 → 置信度分级                             │
+│ storage:   SQLite(项目/事件/复核) + JSON(轨迹/事件) → 统计视图        │
+└──────────────────────────────────────────────────────────────────────┘
+          可选：本地 VLM 服务(Qwen2.5-VL-7B/GLM-4.1V-9B) 只吃候选片段
+```
+
+**与现有仓库的关系**：不另起炉灶。新增 `frisbee_analyzer/` 包（video_io/engine/events/tasks/storage/ui 模块），复用 `utils/homography.py`（升级）、`models/train.py`（扩类训练）、`tools/review_*`（内部标注工具）、现有飞盘检测权重。GUI 与推理引擎解耦，引擎各步骤可独立用 CLI 跑（保持脚本文化）。
+
+---
+
+## 4. 技术选型决策表
+
+| # | 需求 | 选型 | 备选（触发条件） | 关键理由 |
+|---|---|---|---|---|
+| 1 | GUI | PySide6 + QVideoSink 逐帧 + QGraphicsScene + QProcess worker | FastAPI+Vue（未来多人协作） | 视频+叠加是 Qt 验证场景；Streamlit 有硬伤；LGPL 安全 |
+| 2a | 球员检测 | roboflow DFL 权重零样本 → 自标微调（COCO person 预训练起步） | RF-DETR | 500–3000 帧微调即可，现有训练管线复用 |
+| 2b | 球员跟踪 | ultralytics BoT-SORT（内置） | boxmot StrongSORT+OSNet（出画重入痛点时）；roboflow/trackers（要 Apache 干净依赖时） | 零集成成本；SportsMOT 基准支持 ByteTrack 系 |
+| 2c | 队伍分类 | SigLIP+UMAP+KMeans（60 帧 fit）+ 颜色 KMeans 兜底 + 开球位置先验校正 | CLIP 零样本 prompt | 无监督零标注；对花哨队服鲁棒；roboflow 代码可搬（2–3 人日） |
+| 3a | 飞盘定位 | 现有 YOLO-P2 + SAHI（主路） | +TrackNetV3 第二路（5k 帧验证门通过后） | 已验证资产；TrackNet 补远景/遮挡 |
+| 3b | 轨迹重建 | 离线两遍式：tracklet 链接 + 双向 Kalman/RTS + 抛体外推 + 插值 | FrisPy 全气动模型（外推精度不够时） | 赛后分析独享双向信息；FrisPy 方程可作先验 |
+| 3c | 速度/距离 | 静态单应（固定机位）+ 低空段地面速度 + 已知距离平均速度 + 误差条 | 视半径测距/抛体拟合反演高度（精度不够时）；关键点自动标定（转播摇镜头） | 高度误差 ≈d·h/(H−h) 必须显式处理；诚实精度 ±10–20% |
+| 4a | 交换手/turnover | 几何规则（手部区域+低速+N 帧惯性）主判定 + clip 分类器过滤 | VLM 兜底（仅候选发现） | Tryolabs 模板 + 轨迹断点共识；飞盘持盘是布尔态更易判 |
+| 4b | 比分 | 几何谓词（接住点∈对方得分区）+ pull 后解锁 + 人工一键确认 | 记分牌 OCR（业余场景不适用，弃） | 得分定义本身是几何谓词；人工确认是信任锚点 |
+| 5 | VLM（可选后置） | Qwen2.5-VL-7B（Apache）或 GLM-4.1V-9B（MIT），vLLM 量化部署 | MiniCPM-V 4.5（高帧率扫描） | 只做镜头切换/丢盘重理解；MMVP 证据禁止其做细粒度判定 |
+
+**License 红线**：可自由集成——roboflow/sports、supervision、trackers、ByteTrack/BoT-SORT、torchreid、MMPose、TrackNetV3、WASB-SBDT、FrisPy、PySide6（均 MIT/Apache/BSD/LGPL）。**注意**——ultralytics 为 **AGPL-3.0**（闭源商用需授权，或评估 RF-DETR/其他框架重训）；boxmot、sn-gamestate、PnLCalib、Kinovea、X-AnyLabeling 为 GPL/AGPL（只学不抄）；VideoMAE 权重 CC-BY-NC（商用选 SlowFast/TimeSformer）。
+
+---
+
+## 5. 实施路线图
+
+> 原则：每个阶段以"在 1–2 个真实视频上的可验收门"结束；先跑通全管线（精度可以差），再逐段提精度；所有阶段复用 tmux 训练流程与 exclude_ranges 防泄露规则。
+
+### Phase 0 — 地基与验证实验（约 1 周）
+
+- [ ] 仓库清理：API key 移出源码进环境变量；无关资产（QMR-web、WIKI.md、package.json）移出或归档；AGENTS.md 更新至真实状态（默认模型、Kalman 状态数）
+- [ ] `utils/homography.py` 升级：findHomography+RANSAC、6–8 点、重投影残差、可配置场地模板（WFDF/USAU）
+- [ ] **实验 E1（关键决策点）**：roboflow DFL 足球球员检测权重在本项目比赛视频上零样本试跑，统计 P/R（用 review_web 抽 100 帧人工核）
+- [ ] **实验 E2**：现有飞盘检测器 + BoT-SORT（ultralytics model.track）在测试视频跑通，观察 ID 稳定性
+- [ ] 产出决策：球员检测走"直接微调"还是"重标数据"；机位是固定还是摇镜，决定标定策略
+
+### Phase 1 — 球员管线 + GUI 骨架（约 2–3 周）
+
+- [ ] 球员检测器微调（frisbee+player+referee 多类或独立模型，按 E1 结果定），500–1000 帧起步
+- [ ] BoT-SORT 球员跟踪接入（固定机位配置），输出 (track_id, bbox) 序列
+- [ ] SigLIP 分队模块（移植 roboflow/sports `team.py`）+ 开球位置先验校正 + 人工在 GUI 改判入口
+- [ ] **PySide6 GUI v0**：打开视频 → QProcess 跑分析（进度条/取消）→ 播放器叠加球员框+队伍色 → 场地 4/6 点标定交互（升级 calibrate_field 逻辑进桌面端）→ 保存标定
+- [ ] 验收门：一段 10 分钟视频端到端，分队准确率人工抽检 ≥90%，跟踪 ID 跳变可视评估
+
+### Phase 2 — 飞盘轨迹与速度/距离（约 2–3 周）
+
+- [ ] 统一管线：SAHI 候选 → 飞盘轨迹重建（离线两遍式：tracklet 链接 + 双向 Kalman + 抛体外推补洞）
+- [ ] 速度/距离统计输出：世界坐标平滑、低空段地面速度、出手→接盘平均速度、**误差条**；数据结构按 MOT/COCO-video 风格落 JSON
+- [ ] GUI：轨迹叠加回放、速度标签、轨迹长度/瞬时速度曲线（pyqtgraph）
+- [ ] **实验 E3（TrackNet 决策门）**：预标 5k–10k 帧点标注，TrackNetV3 羽毛球 ckpt 微调，对比双路 vs 单路召回——通过则并入主路，否则搁置
+- [ ] 验收门：标注 3 段 ground-truth 传盘，速度误差与轨迹完整率量化报告
+
+### Phase 3 — 事件统计（交换手/比分）+ 复核闭环（约 2–3 周）
+
+- [ ] 持盘人判定引擎（手部区域+低速+N 帧惯性+世界坐标阈值）→ 交换手/turnover 事件流
+- [ ] 得分谓词（接住点 ∈ 对方得分区多边形 + 进攻方向）+ pull 检测重置 + 得分后锁定
+- [ ] clip 分类器（VideoMAE-Kinetics 或 T-DEED）过滤候选事件（20–30 场事件点击标注，50–200 clip/类）
+- [ ] GUI：时间线事件轨、低置信度复核队列（确认/改判/删除/回写统计）、比分板、交换手统计表
+- [ ] 导出：比赛统计报告（JSON/CSV）+ 叠加标注视频（ffmpeg NVENC）
+- [ ] 验收门：1 场完整比赛 vs 人工记录（UltiAnalytics 式记法），交换手计数误差、比分 100% 正确（经人工确认后）
+
+### Phase 4 — 鲁棒性增强（可选/按需）
+
+- [ ] 本地 VLM（Qwen2.5-VL-7B/GLM-4.1V-9B 量化，vLLM）：镜头切换重理解、丢盘候选发现，仅产复核建议
+- [ ] 转播摇镜头：镜头切换检测 + 每关键帧重估单应性（关键帧标定 + LK 光流传播 + 定期重锚）；二期飞盘场关键点检测模型（8–10 点，照搬 roboflow 模式）
+- [ ] 姿态估计（yolo11s-pose 零样本→微调）：持盘判定加入手腕关键点、倒地判别
+- [ ] ReID（boxmot/OSNet 弱线索）：球员出画重入 ID 保持
+- [ ] FrisPy 气动模型替代简化抛体外推；视半径测距（盘径 27.5cm）反演高度提升测速精度
+
+---
+
+## 6. 风险与缓解
+
+| 风险 | 等级 | 缓解 |
+|---|---|---|
+| 飞盘高度导致的测速误差被用户误解 | 高 | UI 显式标注"低空速度/平均速度"+误差条；文档写明单目精度边界 |
+| 转播摇镜头使静态标定失效 | 高 | Phase 0 先确认素材类型；摇镜头素材走"镜头切换+重标/机位库"路线，关键点模型后置 |
+| 球员跟踪 ID 跳变污染分队与持盘统计 | 中 | 队级惯性规则吸收短时跳变；队属按 track 聚类而非逐帧；复核队列兜底 |
+| 遮挡导致飞盘长丢、交换手漏计 | 中 | 离线两遍式重建 + 物理外推 + clip 分类器找疑似交接；复核队列把"疑似"呈给用户 |
+| ultralytics AGPL 对闭源商用的限制 | 中 | 当前非商业阶段无影响；商业化前评估买授权或迁移 RF-DETR |
+| 业余比赛画质差/无号码/无记分牌 | 中 | 架构已按"无记分牌"设计；号码/OCR 全部后置为可选 |
+| 训练数据泄露测试视频（历史踩坑） | 中 | 沿用 exclude_ranges + 提交前 find 校验，规则写进新模块的 checklist |
+
+---
+
+## 7. 附录：调研覆盖的主要仓库清单
+
+**综合/足球分析**：roboflow/sports（5.3k）、abdullahtarek/football_analysis（1k）、tryolabs/soccer-video-analytics（305）、SoccerNet/sn-gamestate（449, GPL）、FootballAnalysis/footballanalysis（223）、Gsak3l/Sports-Analysis-Software（53, PySide6+DeepSort）
+
+**跟踪/MOT**：roboflow/trackers（3.7k）、FoundationVision/ByteTrack（6.7k）、NirAharon/BoT-SORT（1.5k）、mikel-brostrom/boxmot（8.3k, AGPL）、MCG-NJU/SportsMOT（226）、KaiyangZhou/deep-person-reid（4.9k）、shallowlearn/sportsreid（26）
+
+**球/飞盘追踪**：qaz812345/TrackNetV3（302）、TrackNetV4（96）、nttcom/WASB-SBDT（190）、jhwang7628/monotrack（56）、tmcclintock/FrisPy（43）、obss/sahi（5.5k）、asigatchov/fast-volleyball-tracking-inference（67）、OrcustD/RacketVision（88）
+
+**标定/测速**：mguti97/PnLCalib（105, GPL）、NikolasEnt/soccernet-calibration-sportlight（63）、MM4SPA/tvcalib（52）、Spiideo/soccersegcal（42）、shaheedmalik/tlNet（50）、lood339/two_point_calib（56）、cemunds/awesome-sports-camera-calibration、syncom/psfv、BaseballCV（13）、vcg-uvic/sportsfield_release（77）
+
+**事件/VLM**：lRomul/ball-action-spotting（137）、SoccerNet/sn-spotting（≈600）、arturxe2/t-deed（≈100）、avishah3/AI-Basketball-Shot-Detection-Tracker（≈1k）、royshil/scoresight（139）、Qwen2.5-VL-7B / Qwen3-VL / InternVL3-8B / MiniCPM-V 4.5 / GLM-4.1V-9B、simula/SoccerChat、happyharrycn/actionformer_release（≈1k）、facebookresearch/SlowFast、TimeSformer
+
+**GUI/标注**：Kinovea（491, GPL）、CVHub520/X-AnyLabeling（≈7.5k, GPL）、cvat-ai/cvat（16.7k）、HumanSignal/label-studio（≈19k）、roboflow/supervision（49.9k）、captainfffsama/LabelHomography（13）、jaseg/python-mpv（≈4.5k）、AraViQ6、pyqtgraph
+
+**飞盘垂直**（全部极早期）：ccheever/frisbee-tracker（0, MIT, 架构最像）、shunsuke-iwashita/VTCS（2, UltimateTrack 数据集待发布）、phuang1024/Discam（0, AGPL）、saundesh/frisbee-tracking（2）、scoolerh/Ultimetrics、Stanford CS231n "Ultimate Vision"、bbwieland/fRisbee（9, R 语言统计包）、UltiAnalytics（商业 app，事件体系参考）
+
+> 注：此前提及的 "UltimateTracker"（CVPRW 2023）经核实不存在（repo 404、无 Wayback 存档、CVSports 2023 论文集无此文），已从所有规划中移除。
+
+---
+
+## 8. 附录：2026-09-08 首轮实测（B 站决赛视频）
+
+测试素材：[2024城市飞盘俱乐部锦标赛决赛 北京大哥 VS 上海沪蛙](https://www.bilibili.com/video/BV1hTtpeyEzb/)（47min13s，852×480@30fps，匿名可下载的最高清晰度；1080P 需登录 cookies）。工具链：**BBDown**（yt-dlp 被 B 站 playurl API 412 风控拦截，浏览器 cookies 解密失败）。测试工件：`data/bili_final_test/`。
+
+### 8.1 素材勘察结论
+
+- 边线单机位、会**摇移跟随比赛**（非全固定）→ 单应性按镜头段处理，证实现有方案风险项。
+- 红队 vs 蓝队队服颜色分明 → 颜色聚类分队可行。
+- 有转播记分牌 overlay。**用户明确：记分牌只做可选交叉验证，所有统计主判定必须算法自洽（几何/轨迹），因为不是所有比赛都有记分牌。**
+- 场上 14 人 + 边线大量观众/替补同框 → 球员 vs 观众需按场地多边形区域过滤。
+
+### 8.2 E1 球员检测零样本对比（2 帧人工计数 ~25 / ~14）
+
+| 方案 | probe_60s | probe_1200s | 速度 | 结论 |
+|---|---|---|---|---|
+| DFL 足球权重 全帧 conf0.10 | 15 | 7 | ~25ms | **不可用**：漏检近半，前景大目标也漏 |
+| DFL + SAHI(2x) | 11 | 1 | ~600ms | 更差 |
+| yolov8x COCO person 全帧 | 28 | 17 | ~25ms | 覆盖良好 |
+| yolov8x + SAHI(2x) | 31 | 21 | ~250ms | 覆盖最好之一 |
+| yolo11x 全帧 / SAHI | 30 / 31 | 20 / 18 | ~25 / ~260ms | 同 v8x |
+| yolo26x 全帧 / SAHI | 28 / 32 | 20 / 19 | ~26 / ~250ms | 同 v8x |
+
+**结论：**
+1. roboflow DFL 足球权重不适用本素材（其训练域是转播特写，我们是全景边线机位）——E1 原假设反转，**改走 COCO person 预训练 + 自标微调**（分类别：player/referee）。
+2. **YOLO 版本问题（用户提问）**：零样本 person 层面 v8x/11x/26x 检出数几乎一致（28-32），架构差异在此不明显；"x" 来自预训练权重底座而非选型偏好。**架构选型推迟到微调基准测试**（frisbee 重训时 v8s-P2 vs yolo11/26-p2 正面对比），注意 ultralytics 全系 AGPL-3.0，闭源商用备选 RF-DETR（Apache-2.0）。
+3. 观众同框被正确检出为 person（无害，由场地多边形过滤解决）。
+
+### 8.3 飞盘检测 480P 表现（现有 p2_shadow_v1 + SAHI，60s 片段 900 帧）
+
+- 16.7% 帧有检测（150 帧/152 个检测），但**置信度 top10 的检测放大后全部是草纹误检**（最高 0.90 也是 FP）。
+- 原因：训练域为 1080P 级画面，480P 下盘仅 ~10px 且草纹理成为混淆源。
+- **行动项**：a) 从本视频收集 bbox 级硬负样本（草纹）入训练池；b) 训练加降分辨率/低质量增广；c) 微调基准中加入 480P 域抽帧标注数据；d) 尽可能获取 1080P 源（登录 cookies 或其他高清来源）。
+
+### 8.4 E 盘资料库盘点结论
+
+| 位置 | 内容 | 处置 |
+|---|---|---|
+| `E:\frisbee-pool`（5150 图+标注+manifest） | 当前训练池镜像（ultimateml 1001/kaggle 851/coco 2268/coconeg 445/hardneg 202/negatives 80/pseudo 103/game1080 200，19% 背景） | 已在用，作为权威副本 |
+| `E:\firsbee\03_datasets\UltimateML`、`kaggle_frisbee` | 已入池的原始来源 | 保留 |
+| `E:\firsbee\03_datasets\openimages_frisbee`（1.3GB parquet+全量标签 CSV+frisbee id 清单） | 只挖出过 5 张；parquet 里还有可挖掘的 Flying-disc 图 | **待挖掘**：扩充训练域多样性 |
+| `E:\firsbee\03_datasets\ultimate_analytics` | **最有价值先例**：YOLOv8+KMeans 分队（7v7 每队上限先验）+鸟瞰战术板；Supervisely 精标数据集未随库发布（仅 4 样帧 person 框） | 借鉴 7 人上限先验与工程结构 |
+| `E:\firsbee\03_datasets\frisbee-vision-project` | COSC428 课程项目：CSRT/KCF 传统跟踪+近景投掷素材+报告 | 近景测试素材与传统方法参考 |
+| `E:\firsbee\03_datasets\SoccerSynth-Field` 等 | 场线合成图（4 张）/零散 | 边际参考 |
+
+### 8.5 环境事实
+
+- GPU 推理/训练用 **WSL Ubuntu**（torch 2.11.0+cu128）；Windows 侧 anaconda 是 CPU torch。
+- B 站下载：BBDown 匿名 480P 上限；yt-dlp 被 412 拦截；1080P 需登录 cookies。
+
+---
+
+## 9. 附录：2026-09-08 凌晨自主执行记录（03:24–08:50 窗口）
+
+### 9.1 高清源打通
+
+- 从发布工具（WSL `~/social-auto-upload`，sau CLI）的 `cookies/bilibili_diyi.json` 提取 B 站登录 cookie，BBDown `-c` 传参解锁 **1080P**（943MB AVC，1920×1080@30fps）。工具脚本：`data/bili_final_test/make_cookie_str.py`。
+
+### 9.2 1080P 飞盘检测复测（关键发现）
+
+| 指标 | 480P | 1080P |
+|---|---|---|
+| 帧检出率（60-120s，900 帧） | 16.7% | **53.1%** |
+| 置信度中位数 | ~0.42 | **0.62** |
+| 高置信度 top10 放大目检 | 全部草纹误检 | **仍是同一批草纹误检（0.82-0.91），位置与 480P 一致** |
+
+- 结论：分辨率提升大幅改善召回，但**草纹误检是域缺口问题而非分辨率问题**——硬负样本路线被证实为正确方向。f382 帧检出真飞盘（鱼跃接盘），证明模型有判真能力。
+
+### 9.3 硬负样本与数据集 v2
+
+- 全 480P 视频 1fps 扫描 → 703 个检测裁剪候选 → conf≥0.45 过滤剩 559 → **GLM-4V-Flash 逐个确认 494 个为非飞盘**（65 个确实含真盘被排除，VLM 过滤有效）。
+- **`frisbee_merged_v2`**：原 merged（4135 train）+ 494 个 bbox 级确认负样本 = 4629 train / 1246 背景（27%）。`configs/frisbee_merged_v2.yaml`。脚本：`data/bili_final_test/build_v2_dataset.py`。
+- 数据卫生：这些负样本来自决赛视频（bbox 裁剪级，符合 AGENTS 规则）；**该视频今后作为域内开发/验证视频，最终评测需另用未见过的视频**。
+
+### 9.4 球员预标注包（人工复核就绪）
+
+- 1080P 全视频每 2 秒抽帧 **1417 帧** → yolo26x @conf0.30 预标 **34072 个 person 框**（`data/bili_final_test/player_labels/`）。
+- yololabeler 复核包已导出：`yololabeler data/bili_final_test/player_frames` 即可开始人工修正（1417 图 / 37758 预测框）。目检质量良好（含前景观众全覆盖）。
+
+### 9.5 架构基准训练（进行中）
+
+- 对照：**yolov8s-p2 vs yolo26s-p2**（ultralytics 8.4.46 无 11 系 P2 yaml；两代 P2 头、同级参数量，变量干净）。
+- 同超参：merged_v2 数据、box=5、epochs=30、patience=8、close_mosaic=5、imgsz=1280、batch=2、workers=2、seed=42。
+- tmux 会话 `bench`，脚本 `data/bili_final_test/run_bench.sh`，日志 `train_bili_bench_*.log`；epoch 实测 ~2.5-3 分钟（含 val）。
+- 训后评测（`eval_bench.sh`）：固定标尺 = 原 `frisbee_merged` test 集 mAP；域检查 = 同条件 1080P 片段 SAHI 复测草纹误检是否消退。
+
+### 9.6 架构基准与硬负样本效果（07:25 更新）
+
+**同标尺评测**（frisbee_merged test 集，476 图，imgsz1280）：
+
+| 模型 | 数据 | epochs | mAP50 | mAP50-95 | P | R |
+|---|---|---|---|---|---|---|
+| p2_shadow_v1（现役基线） | merged | 100 | **0.855** | 0.481 | 0.923 | 0.763 |
+| bili_bench_v8sp2 | merged_v2(+494负) | 30 | 0.701 | 0.361 | 0.775 | 0.643 |
+| bili_bench_26sp2 | merged_v2(+494负) | 30 | 0.581 | 0.307 | 0.687 | 0.537 |
+
+结论：
+1. **架构对比（同数据同 30 epochs）：v8s-p2 完胜 yolo26s-p2**（+12 mAP50）——"更新一代 YOLO"在此 P2 小目标任务上不占优，现役架构选型保持 v8s-p2。YAML 可用性：ultralytics 8.4.46 无 11 系 P2，v8/26 有。
+2. bench 绝对值低于基线主因是**训练时长（30 vs 100 epochs 欠训练）**——对照实验已证实（08:34）：v8s-p2 @ 原始 merged、同 30 epochs → val mAP50=**0.687**（P 0.739 / R 0.649），与加负样本的 0.699（P 0.805 / R 0.600）相当且精度更高。**负样本不伤标准 mAP 还提升精度，策略完全验证**；下一步生产级训练 = merged_v2 + 100 epochs（约 4h），预期在保持域内 FP 压制的同时追平基线 0.855。
+3. **硬负样本对域内误检的效果（已验证）**：同条件 1080P 片段复测，重训后检测数 527→236（−55%）、置信度峰值 0.91→0.75、≥0.70 检测 47→3——高置信度草纹误检被显著压制，但未根除（f380 帧真盘正常检出）。需多轮负样本迭代（更多帧、更多场地/光照、1080P 源负样本）。
+4. 工程注意：ultralytics 全局 settings 的 runs_dir 指向 `~/comfy/ComfyUI/runs`，训练实际输出在 `ComfyUI/runs/detect/runs/<name>`，训后需复制回项目 `runs/detect/<name>`；后台任务必须用 **tmux** 保活（nohup 会随 WSL 会话退出被杀）。
+
+### 9.7 待办（08:50 停止点后由用户安排）
+
+1. 训练与评测结果判读（bench_status.log / eval_status.log）
+2. 球员预标注人工复核（yololabeler 包）→ 训练 player/referee 检测器
+3. 换更清晰源或更多场次视频扩硬负样本；单应性标定（按镜头段）
+4. 交换手/比分几何事件引擎开发（方案 §4 第 4 行）
+
+---
+
+## 10. 计划审核（17:30–19:00 第二轮）：去人工化修订与并行开发体系
+
+背景：用户对原计划提出两个关键挑战——"人工成分不能再减少吗？有再互联网中穷举式寻找方案了吗？"与"任务分 worktree 并行、GPU 排队"。据此做了三路专项调研并重构执行体系。
+
+### 10.1 假设验证总表（实测 vs 原假设，含反转）
+
+| # | 原假设 | 实测结果 | 结论 |
+|---|---|---|---|
+| H1 | roboflow DFL 足球权重可零样本用于球员检测 | 漏检近半（15/25），前景大目标也漏 | **反转**：改 COCO person 预训练（yolo26x 覆盖 28-32/帧）|
+| H2 | 误检主因是 480P 分辨率 | 1080P 检出率 16.7%→53.1% 但高置信误检仍是同一批草纹 | **部分反转**：召回受分辨率影响，误检是域缺口 |
+| H3 | 更新一代 YOLO（yolo26）更好 | 同数据同 30ep：v8s-p2 0.701 vs 26s-p2 0.581 | **反转**：现役 v8s-p2 架构保持 |
+| H4 | 事件统计走"几何主判定+人工复核队列" | 维持（三路调研证据支持：MMVP、Tryolabs、羽毛球轨迹断点共识）| 维持 |
+| H5 | TrackNetV3 第二路提升遮挡召回 | 未验证 | 维持候选（决策门保留）|
+| H6 | 硬负样本会轻微伤标准 mAP | 对照实验：0.699 vs 0.687，P 反升（0.805 vs 0.739）| **反转（正面）**：无代价纯收益 |
+| H7 | 球员标注需人工 2-5 人日 | E4' 全自动管线 0 人工完成 34072 框 | **反转**：见 10.2 |
+
+### 10.2 三路"去人工化"调研结论与落地实测
+
+**E4' 球员角色全自动标注**（替代 2-5 人日人工复核）：person 域是开放词汇/自动标注官方验证"接近人工"的域；队伍分类走无监督通道（调研：SAM2 抠 torso+KMeans / SigLIP 投票 / GLM-4V 仲裁）。落地实测（零人工）：yolo26x 预标 34072 框 → HSV 红蓝/黑黄条纹规则 + GLM-4V 仲裁 400 次 → 红 10899 / 蓝 10613 / 裁判候选 3521（初版误判 7888，收紧后修复）/ ignore 9039；抽检图确认场上球员全对，残余误差集中在场边观众（标定后场地多边形可滤）。产出：`tools/auto_label_roles.py` + role_labels/ + 抽检图。
+
+**E6 自动事件 GT**（替代 30-60 分钟人工看场）：调研关键证据 IJCNLP 2025（arXiv 2506.17144）纯解说文本 mAP 64.5 追平视频 SOTA。落地实测：AI 字幕（659 条）→ LLM 抽取 52 事件；记分牌 OCR（帧差触发+GLM-4V）追出 15 次比分跳变（0:0→5:7 与真实一致）；FunASR 转写对照路；三路融合钳位去重后 **14 得分 + 1 攻守转换**。残余人工：GUI 阶段抽检 10-15 分钟。
+
+**E5-v0 场地自动标定**（免训练档）：诚实负结果——业余素材上白线磨损/白衣干扰/杂物多，Hough+矩形模板匹配 10 帧仅 1 帧"解算"且为假阳性（画面根本无场线）。结论：免训练经典路线不可行；可行路线 = ①合成数据训练档（调研有 SCCvSD/SoccerSynth 先例，飞盘模板仅 6 线+2 点，本地 2D 渲染器一天可产 10 万帧零人工标注）②人工 4-8 点 fallback（每机位段 <1min，`tools/calibrate_field.py` 已有）。
+
+### 10.3 人工必要性验证表（修订版）
+
+| 人工点 | 原估计 | 现估计 | 依据 |
+|---|---|---|---|
+| 球员标注 | 2-5 人日 | **0（E4' 自动）**，抽检 ~15min | E4' 实测 |
+| 场地标定 | 每段手动点击 | E5-v0 证伪免训练路线 → **合成数据训练档（零人工标注）为主，人工 4-8 点为 fallback** | E5-v0 负结果 |
+| 事件 GT | 30-60 min | **10-15 min 抽检** | E6 实测（三路融合）|
+| 运行时确认 | 每次得分确认 | **可选修正接口**（三路旁证高置信自动记账）| 用户需求 + E6 |
+| GUI 验收 | 30 min | 30 min（不可消除：用户验收自己产品）| — |
+| cookie 续期/push 凭据 | — | 一次性 | — |
+
+### 10.4 并行开发体系（用户要求的 worktree + GPU 排队）
+
+- **三个任务 worktree**（代码隔离，数据经绝对路径共享主树）：
+  - `.worktrees/auto-label` → `feat/auto-label-roles`（E4'）
+  - `.worktrees/auto-gt` → `feat/auto-gt-events`（E6）
+  - `.worktrees/auto-calib` → `feat/auto-calibration`（E5-v0）
+- **GPU 排队**：`tools/gpu_run.sh`（flock 锁 /tmp/frisbee_gpu.lock，跨 worktree 串行）+ tmux 长驻。任务顺序示例：OCR → ASR → 生产级重训。
+- **集成分支** `feat/match-analysis`：三路已合并（4 commits + 3 merges），生产级重训 `bili_prod_v8sp2`（merged_v2+100ep，~4.2h）tmux `prod` 运行中。
+- 训练输出路径陷阱（runs_dir 指向 ~/comfy/ComfyUI/runs）：训后需从 `ComfyUI/runs/detect/runs/<name>` 复制回项目。
+
+### 10.5 更新后路线图
+
+- **Phase 1（本轮已完成大半）**：E4'/E6/E5-v0 三产物 + 生产级重训（跑完看数）+ 事件引擎骨架（106 测试全绿）
+- **Phase 2**：GUI v0（PySide6，用户已开独立会话在 .worktrees 相应目录开发）→ 集成 E4' 标签与 E6 GT → 交换手/比分统计首秀
+- **Phase 3**：标定合成数据训练档（零人工）→ 事件引擎接真实管线用 E6 GT 验证精度 → autodistill 式自蒸馏球员检测器
+- **Phase 4**：TrackNetV3 决策门、VLM 兜底、光流传播标定、ReID
