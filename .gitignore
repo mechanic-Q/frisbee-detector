@@ -58,3 +58,27 @@ venv/
 
 # Git worktrees
 .worktrees/
+
+# ── 本地杂物与 AI 工具链资产（原地保留，不进 git）────────────────
+/node_modules/
+/package.json
+/package-lock.json
+/QMR-web-decision-tree/
+/QMR-web-tool-system-summary.md
+/WIKI.md
+/agency-agents-zh/
+/text_*.json
+/classes.json
+
+# 本地 agent 工作区
+.claude/
+.codex/
+.opencode/
+.sisyphus/
+.spec-workflow/
+.superpowers/
+.zcode/
+
+# 本地媒体与研究数据
+/movie/
+/frisbee-data/
