@@ -31,6 +31,7 @@ class MainWindow(QMainWindow):
         self.doc: dict | None = None
         self.doc_path: str | None = None
         self.fps: float = 30.0
+        self.calib_matrix = None
 
         self.player = VideoPlayerWidget(self)
         self.setCentralWidget(self.player)
@@ -70,6 +71,16 @@ class MainWindow(QMainWindow):
         self.act_team.setEnabled(False)
         self.act_team.triggered.connect(self.open_team_override)
 
+        self.act_field_only = QAction("只看场内球员", self)
+        self.act_field_only.setCheckable(True)
+        self.act_field_only.setChecked(True)
+        self.act_field_only.triggered.connect(self._update_overlay)
+
+        self.act_show_unassigned = QAction("显示未分配", self)
+        self.act_show_unassigned.setCheckable(True)
+        self.act_show_unassigned.setChecked(False)
+        self.act_show_unassigned.triggered.connect(self._update_overlay)
+
         for act in (self.act_open, self.act_open_result, self.act_start,
                     self.act_cancel, self.act_calib, self.act_team):
             self.addAction(act)
@@ -84,6 +95,9 @@ class MainWindow(QMainWindow):
         toolbar.addSeparator()
         toolbar.addAction(self.act_calib)
         toolbar.addAction(self.act_team)
+        toolbar.addSeparator()
+        toolbar.addAction(self.act_field_only)
+        toolbar.addAction(self.act_show_unassigned)
 
         # 键盘：空格播放/暂停，←→ 逐帧
         for keys, fn in (("Space", self.player.toggle_play), ("Left", lambda: self._step(-1)),
@@ -186,7 +200,17 @@ class MainWindow(QMainWindow):
         if self.doc is None:
             return
         idx = self.player.current_frame_index(self.fps)
-        self.player.set_overlay(self.doc.get("frames", {}).get(str(idx)))
+        dets = self.doc.get("frames", {}).get(str(idx))
+        if dets:
+            from frisbee_analyzer.filters import FIELD_POLYGON_M, filter_dets
+
+            if self.act_field_only.isChecked():
+                dets = filter_dets(dets, self.doc.get("height") or 1080,
+                                   matrix=self.calib_matrix, polygon=FIELD_POLYGON_M,
+                                   require_team=not self.act_show_unassigned.isChecked())
+            elif not self.act_show_unassigned.isChecked():
+                dets = [d for d in dets if d.get("team_id") is not None]
+        self.player.set_overlay(dets)
         self.frame_label.setText(f"f{idx}")
 
     # ── 分析任务 ─────────────────────────────────────────
@@ -246,6 +270,7 @@ class MainWindow(QMainWindow):
 
     def _apply_calibration(self, path: str):
         calib = load_calibration(path)
+        self.calib_matrix = calib["matrix"]
         lines_px = []
         for a, b in FIELD_LINES_WORLD:
             seg = []
