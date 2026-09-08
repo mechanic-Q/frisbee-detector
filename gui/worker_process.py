@@ -6,13 +6,11 @@ stdout 逐行 JSON（协议 frisbee_analyzer/protocol.py），强制 UTF-8。
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from PySide6.QtCore import QProcess, QProcessEnvironment, QTimer, Signal
 
 from frisbee_analyzer import protocol
 
-PROJECT_ROOT_GUI = Path(__file__).resolve().parents[1]  # 所在 worktree/仓库根（Windows 路径）
+from .worker_paths import build_worker_argv
 
 
 class AnalysisWorker(QProcess):
@@ -35,14 +33,8 @@ class AnalysisWorker(QProcess):
                        max_frames: int | None = None) -> None:
         self._cancel_requested = False
         self._buffer = b""
-        wsl_root = protocol.win_to_wsl(str(PROJECT_ROOT_GUI))
-        argv = ["--cd", wsl_root, "-e", "python3", "-m", "frisbee_analyzer.pipeline",
-                "--video", _fwd(video_win_path),
-                "--output-dir", _fwd(output_dir_win)]
-        if weights_win_path:
-            argv += ["--weights", protocol.win_to_wsl(_fwd(weights_win_path))]
-        if max_frames:
-            argv += ["--max-frames", str(max_frames)]
+        argv = build_worker_argv(video_win_path, output_dir_win,
+                                 weights_win=weights_win_path, max_frames=max_frames)
 
         env = QProcessEnvironment.systemEnvironment()
         env.insert("PYTHONUTF8", "1")
@@ -94,6 +86,3 @@ class AnalysisWorker(QProcess):
             self.failed.emit(f"worker 退出码 {exit_code}（详情见日志）")
 
 
-def _fwd(path: str) -> str:
-    """Windows 路径统一为正斜杠，避免 wsl.exe 传参时的反斜杠转义问题。"""
-    return str(path).replace("\\", "/")

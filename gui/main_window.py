@@ -16,16 +16,11 @@ from utils.homography import FIELD_LINES_WORLD, load_calibration, world_to_pixel
 from .calibrate_dialog import CalibrateDialog
 from .team_override import TeamOverrideDialog
 from .video_player import VideoPlayerWidget
-from .worker_process import AnalysisWorker, PROJECT_ROOT_GUI
+from .worker_paths import PROJECT_ROOT_GUI, main_checkout_root
+from .worker_process import AnalysisWorker
+
 
 VIDEO_FILTER = "视频 (*.mp4 *.mov *.mkv *.avi *.webm);;所有文件 (*)"
-
-
-def _main_checkout_root() -> Path:
-    """从 worktree 运行时返回主 checkout 根；否则返回当前仓库根。"""
-    if PROJECT_ROOT_GUI.parent.name == ".worktrees":
-        return PROJECT_ROOT_GUI.parent.parent
-    return PROJECT_ROOT_GUI
 
 
 class MainWindow(QMainWindow):
@@ -141,7 +136,7 @@ class MainWindow(QMainWindow):
 
     # ── 打开视频 / 结果 ──────────────────────────────────
     def open_video_dialog(self):
-        path, _ = QFileDialog.getOpenFileName(self, "打开视频", str(_main_checkout_root() / "movie"), VIDEO_FILTER)
+        path, _ = QFileDialog.getOpenFileName(self, "打开视频", str(main_checkout_root() / "movie"), VIDEO_FILTER)
         if path:
             self.open_video(path)
 
@@ -200,7 +195,7 @@ class MainWindow(QMainWindow):
             return
         stem = Path(self.video_path).stem
         out_dir = PROJECT_ROOT_GUI / "runs" / "gui_analysis" / stem
-        main_root = _main_checkout_root()
+        main_root = main_checkout_root()
         weights = str(main_root / "yolo26x.pt") if (main_root / "yolo26x.pt").exists() else None
         self.act_start.setEnabled(False)
         self.act_cancel.setEnabled(True)
