@@ -1,0 +1,11 @@
+{
+  "frames": 1416,
+  "boxes": 34072,
+  "by_class": {
+    "player-red": 10899,
+    "player-blue": 10613,
+    "referee": 3521,
+    "ignore": 9039
+  },
+  "vlm_arbitration_calls": 400
+}
