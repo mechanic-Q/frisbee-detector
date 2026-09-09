@@ -457,7 +457,7 @@
   - `.worktrees/auto-gt` → `feat/auto-gt-events`（E6）
   - `.worktrees/auto-calib` → `feat/auto-calibration`（E5-v0）
 - **GPU 排队**：`tools/gpu_run.sh`（flock 锁 /tmp/frisbee_gpu.lock，跨 worktree 串行）+ tmux 长驻。任务顺序示例：OCR → ASR → 生产级重训。
-- **集成分支** `feat/match-analysis`：三路已合并（4 commits + 3 merges），生产级重训 `bili_prod_v8sp2`（merged_v2+100ep，~4.2h）tmux `prod` 运行中。
+- **集成分支** `feat/match-analysis`：三路已合并 + GUI v0 已并回；基准补测队列（11s/26s/v8s）在 makeup 会话排队，完成后自动恢复生产级重训（断点 last.pt.deferred 已保留）。
 - 训练输出路径陷阱（runs_dir 指向 ~/comfy/ComfyUI/runs）：训后需从 `ComfyUI/runs/detect/runs/<name>` 复制回项目。
 
 ### 10.5 更新后路线图
@@ -466,3 +466,60 @@
 - **Phase 2**：GUI v0（PySide6，用户已开独立会话在 .worktrees 相应目录开发）→ 集成 E4' 标签与 E6 GT → 交换手/比分统计首秀
 - **Phase 3**：标定合成数据训练档（零人工）→ 事件引擎接真实管线用 E6 GT 验证精度 → autodistill 式自蒸馏球员检测器
 - **Phase 4**：TrackNetV3 决策门、VLM 兜底、光流传播标定、ReID
+
+### 10.6 补充评估（09-09 凌晨，用户提交的三仓库与四视频）
+
+**三仓库**（子代理逐仓核实 README/目录/源码）：
+
+| 仓库 | 等级 | 结论 |
+|---|---|---|
+| ultralytics/skills | **实质可用** | 官方 AI 代理技能包（AGPL，纯 Markdown），已克隆至 `.agent-references/ultralytics-skills/`。要点：①基准协议修正——YOLO26 用 MuSGD 优化器且端到端 val 的 iou 参数无效，报告架构对比时须注明训练器差异；RT-DETR 无 s 尺寸（不影响我们用 RF-DETR）；②四个增量能力入口：知识蒸馏（`distill_model`）、Ray Tune、`yolo26s-reid.pt`（球员跟踪 ReID）、TensorRT 导出——排入 backlog |
+| longjingcha/yolov8skill | 部分参考（弱） | 其 pipeline（qwen 预标+难度分流+复核+难例回流）是我们已有工具链的简化版；**无 LICENSE 文件+源码泄露 API key**，代码不可碰。唯一可借鉴概念：几何启发式"风险评分分流"复核排序（可自行实现到 review_labels，半天）|
+| positive666/yolo_research | 不相关 | GPL-3.0 的 v5/v7 fork，实停更于 2023-06，全部 trick 绑定过时代码结构，与 ultralytics 包技术栈和同起跑线基准方法论均不兼容 |
+
+**四视频**（子代理下载元信息+AI字幕+抽帧分析，产物在 `data/video_analysis/`）：全部为 YOLO 工具教程，**无飞盘比赛素材**（1080P 场次素材缺口未解决）。唯一有价值项：BV1j6b56VEE4 的 YOLO26-depth 单目米制深度评测——结论"20m 距离误差 4-5m、只能量级正确"，**反向确认精确测速必须走场地几何标定路线**（我们现有方案）；可选低成本实验：yolo26n-depth.pt 在现有 movie/ 片段交叉验证（一个下午，GPU 空闲后）。
+
+**技术选型影响：无改变，有补强**——三仓库均未提供新架构证据，4 架构基准照做；ultralytics/skills 提供基准公平性注意事项（YOLO26 MuSGD 优化器与 val 行为差异须在报告注明）与四项 backlog 能力入口。
+
+---
+
+## 11. 检测器架构基准最终结果与选型建议（09-09）
+
+### 11.1 基准协议
+
+- **同起跑线**：全部官方 COCO 预训练默认权重（v8s/11s/26s 官方发布版；RF-DETR-small 官方 COCO 权重），历史自训版本一律不参与
+- **同配方**：frisbee_merged_v2（4629 训练图，含 494 VLM 确认硬负样本）、box=5、30 epochs、patience=8、imgsz=1280（RF-DETR 672——其 32 倍数约束与官方推荐档位）、seed=42
+- **同标尺**：frisbee_merged test split（476 图），conf=0.001 标准口径；FPS 为 1080P 直推
+- **注意事项**（ultralytics/skills 提示）：YOLO26 训练器为 MuSGD 且端到端 val 行为不同，其对比数字含训练器差异
+
+### 11.2 四维对比表（test 集）
+
+| 模型 | License | mAP50 | mAP50-95 | P | R | FPS@1080P | 参数量 |
+|---|---|---|---|---|---|---|---|
+| **RF-DETR-small** | **Apache-2.0（纯开源）** | **0.7432** | **0.5714** | — | — | **39.8**（@672） | 31.8M |
+| YOLOv8s（标准头） | AGPL-3.0 | 0.6386 | 0.3378 | 0.732 | 0.584 | 13.6 | 11.1M |
+| YOLO26s（标准头） | AGPL-3.0 | 0.5697 | 0.2955 | 0.699 | 0.534 | 14.1 | 9.5M |
+| YOLO11s（标准头） | AGPL-3.0 | 重训中（此前 val 0.773，权重遗失后补测） | — | — | — | — | — |
+| v8s-**P2**（参考线，昨日） | AGPL-3.0 | 0.699(val)/0.701(test) | 0.361 | 0.775 | 0.643 | ~13 | 10.6M |
+| **prod v8s-P2**（merged_v2+100ep） | AGPL-3.0 | **0.8092(test)** | 0.4332 | 0.875 | 0.716 | — | 10.6M |
+
+### 11.3 结论
+
+1. **RF-DETR-small 意外夺魁且优势显著**：mAP50 0.743 领先第二名（v8s-P2 0.701）4 分、领先 v8s 标准头 10 分；**mAP50-95 0.5714 断层领先**（第二名 0.36-0.44）——框回归质量高一个档次；且 39.8 FPS 的推理速度反而是最快的（672 分辨率下）。**纯开源 Apache-2.0，无 AGPL 传染**。
+2. **P2 头的价值再次被确认**：同架构 v8s，P2 头（0.699）比标准头（0.639）高 6 分——小目标头对我们的 10-25px 目标是实打实的增益。
+3. **架构代际排序（标准头）**：v8s(0.639) > 26s(0.570)，与 P2 对照实验结论一致——更新≠更好。
+4. **生产级重训成功**：v8s-P2 + merged_v2 + 100ep 达到 **val mAP50 0.811 / P 0.845**（对比旧基线 shadow_v1 的 0.855 略低但训练数据含 494 硬负样本，域内误检压制能力是 shadow_v1 没有的）。
+5. **YOLO11s 事故记录**：权重在训练成功后遗失（疑似被后续清理逻辑误删，日志有保存声明但文件消失），已用相同配方+cache 提速补测中。
+
+### 11.4 选型建议
+
+- **飞盘检测器主架构（推荐）**：**双轨并行**
+  - **A 轨（当前生产）**：v8s-P2 prod 权重（0.811 val，已含误检压制数据）——立即可用、与现有 SAHI/追踪管线零适配
+  - **B 轨（升级候选）**：**RF-DETR-small 微调版**——把它的 0.743@30ep 视为未充分调优的下限（30ep 对 DETR 系偏少，DETR 通常 50+ep 收敛），值得加训 20-30ep 观察；其 mAP50-95 优势意味着定位更准（对测速的 bbox 中心精度直接有利）；Apache-2.0 消除 AGPL 商用障碍
+- **训练方案**：数据侧继续（硬负样本迭代已证明正收益）；若 RF-DETR 加训后 mAP50 过 0.78，B 轨转正，A 轨退为对照
+- **纯开源备选清单**（后续可测）：D-FINE（ICLR 2025, Apache-2.0）、RT-DETR-Paddle（Apache-2.0，注意无 s 尺寸）
+- **AGPL 红线备忘**：当前研究/内部使用无影响；对外分发闭源版本前必须完成 RF-DETR 转正或购买 Ultralytics 授权
+
+### 11.5 事故与修复记录（队列可靠性）
+
+连环崩溃最终根因链：mlflow 新版 file-store 门禁杀训练启动回调（修复：`MLFLOW_ALLOW_FILE_STORE=true`）→ WSL2 GPU-PV 多进程 CUDA 并发不稳定（修复：严格串行+GPU 空闲守卫+全局 flock）→ watcher 日志匹配误触发（教训：完成标记用文件不用 grep）→ GUI 会话未走锁占用 GPU（修复：协调文件+其 worker 已自动套锁）。prod 恢复的 yolo CLI GreenSocket 崩溃（修复：python API resume）。11s 权重遗失（修复：同配方补测中）。**系统性教训：多会话共享 GPU 必须全部走 gpu_run.sh 锁；完成信号用标记文件。**
