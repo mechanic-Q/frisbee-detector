@@ -112,7 +112,16 @@ def test_label_from_color_accepts_one_colored_one_dark():
     red_teams = {mapping[i] for i in range(1, 11)}
     dark_teams = {mapping[i] for i in range(11, 21)}
     assert red_teams == {0} and dark_teams == {1}  # rf-bf 降序 → 红簇=team0
-    assert colors["0"] == "red"  # 仍须被信号门拒绝
+    assert colors["0"] == "red"
+    assert colors["1"] == "dark"  # 无信号簇诚实标 dark，不硬凑红蓝
+
+
+def test_label_from_color_names_both_colors_when_both_signal():
+    # 红蓝双有信号：两侧都按簇心真实颜色命名
+    feats = {i: (0.30, 0.01) for i in range(1, 6)}
+    feats.update({i: (0.01, 0.28) for i in range(6, 11)})
+    _mapping, colors = label_from_color(feats)
+    assert sorted(colors.values()) == ["blue", "red"]  # 仍须被信号门拒绝
 
 
 def test_label_from_color_too_few_tracks():

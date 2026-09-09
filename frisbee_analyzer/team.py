@@ -223,9 +223,15 @@ def label_from_color(track_feats: dict[int, tuple[float, float]], n_teams: int =
 
     order = sorted(range(n_teams), key=lambda c: cents[c][0] - cents[c][1], reverse=True)
     remap = {old: new for new, old in enumerate(order)}
-    # 颜色由簇心自身的红蓝占比决定（不能按簇索引查表——KMeans 的原始标号是任意的）
-    colors = {str(remap[c]): ("red" if cents[c][0] >= cents[c][1] else "blue")
-              for c in range(n_teams)}
+    # 颜色由簇心自身的红蓝占比决定（不能按簇索引查表——KMeans 的原始标号是任意的）；
+    # 无信号的一侧诚实标 "dark"（GUI 渲染为中性色），不硬凑红蓝
+    colors = {}
+    for c in range(n_teams):
+        rf, bf = float(cents[c][0]), float(cents[c][1])
+        if max(rf, bf) < 0.08:
+            colors[str(remap[c])] = "dark"
+        else:
+            colors[str(remap[c])] = "red" if rf >= bf else "blue"
     mapping = {tids[i]: remap[int(lab)] for i, lab in enumerate(km.labels_)}
     return mapping, colors
 
@@ -249,6 +255,48 @@ def label_from_crops(
     for tid, lab in zip(track_ids, labels):
         per_track[int(tid)].append(int(lab))
     return majority_vote(per_track, mapping)
+
+
+def stability_check(frames: dict, video_path: str, embedder=None,
+                    interval_a: int = TEAM_SAMPLE_INTERVAL,
+                    interval_b: int | None = None) -> tuple[float, int]:
+    """分队自洽性抽检（HSV 无关）：两次不同采样间隔的 SigLIP 分队一致率。
+
+    返回 (一致率, 共同 track 数)。一致率 <0.85 说明分队不稳定（伪两簇），
+    上层应拒绝判定（输出未分配）而不是给出可能错误的队伍归属。
+    """
+    if interval_b is None:
+        interval_b = max(20, interval_a // 2)
+    if embedder is None:
+        embedder = SiglipEmbedder()
+    run_a = _cluster_once(frames, video_path, embedder, interval_a, seed=42)
+    run_b = _cluster_once(frames, video_path, embedder, interval_b, seed=7)
+    common = set(run_a) & set(run_b)
+    if not common:
+        return 0.0, 0
+    agree = sum(1 for t in common if run_a[t] == run_b[t])
+    return agree / len(common), len(common)
+
+
+def _cluster_once(frames: dict, video_path: str, embedder, sample_interval: int,
+                  seed: int) -> dict[int, int]:
+    from sklearn.cluster import KMeans
+
+    track_ids, crops, xs = collect_crops(frames, video_path, sample_interval)
+    if not crops:
+        return {}
+    embeddings = np.asarray(embedder.embed(crops), dtype=np.float32)
+    km = KMeans(n_clusters=2, n_init=10, random_state=seed).fit(embeddings)
+    mapping = team_ids_by_x(km.labels_, np.asarray(xs, dtype=np.float64))
+    per_track: defaultdict[int, list[int]] = defaultdict(list)
+    for tid, lab in zip(track_ids, km.labels_):
+        per_track[int(tid)].append(int(lab))
+    out = {}
+    for tid, labs in per_track.items():
+        team = mapping.get(Counter(labs).most_common(1)[0][0])
+        if team is not None:
+            out[tid] = team
+    return out
 
 
 def assign_teams(
@@ -299,6 +347,24 @@ def assign_teams(
         if not mapping:
             log("team: both channels failed, frames left unassigned")
             return {}
+
+        # 自洽性质检门：分队结果在采样扰动下不稳定 → 拒绝判定（拒绝优于错误）
+        try:
+            if embedder is False or embedder is None:
+                stability, n_common = 1.0, 0  # HSV 路径已过三级门且有独立验证，不再重复 SigLIP 检查
+            else:
+                stability, n_common = stability_check(frames, video_path, embedder)
+            if n_common >= 10 and stability < 0.85:
+                log(f"team: stability {stability:.3f} < 0.85 over {n_common} tracks — "
+                    "rejecting assignment (output unassigned)")
+                for dets in frames.values():
+                    for det in dets:
+                        det["team_id"] = None
+                return {}
+            if n_common:
+                log(f"team: stability {stability:.3f} over {n_common} tracks (gate 0.85) — pass")
+        except Exception as e:  # noqa: BLE001 —— 质检失败不阻塞主结果
+            log(f"team: stability check skipped ({type(e).__name__}: {e})")
 
         for dets in frames.values():
             for det in dets:
