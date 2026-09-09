@@ -21,6 +21,10 @@ D=/home/lmr/comfy/ComfyUI/runs/detect/runs/bench_11s
 bash tools/collect_weights.sh bench_11s
 echo "[$(date +%H:%M:%S)] retrained bench_11s" >> "$LOG/bench_status.log"
 
+if [ ! -s "/mnt/e/frisbee-detector/runs/detect/bench_11s/weights/best.pt" ]; then
+  echo "[$(date +%H:%M:%S)] bench_11s best.pt 仍缺失，中止评测" >> "$LOG/bench_status.log"
+  exit 1
+fi
 wait_gpu_free "eval-11s"
 python3 - <<'PYEOF' > "$LOG/eval_11s_only.log" 2>&1
 import json
