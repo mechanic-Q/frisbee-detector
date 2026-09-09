@@ -1,0 +1,6 @@
+path: E:/frisbee-detector/data/datasets/frisbee_merged_v2
+train: images/train
+val: images/val
+test: images/test
+nc: 1
+names: [frisbee]
