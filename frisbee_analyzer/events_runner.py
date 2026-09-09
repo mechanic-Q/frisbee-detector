@@ -12,17 +12,29 @@ import numpy as np
 from .events import DiscObservation, EndZone, EventType, MatchEventEngine, Player, PossessionConfig
 
 
-def load_calibration(path: Path) -> tuple:
+def load_calibration(path: Path, image_size: tuple | None = None) -> tuple:
     """读项目标定 json → (H 单应矩阵 3x3, field_size_m, end_zone_depth_m)
 
     兼容字段名：homography / matrix（现有 tools/calibrate_field.py 产物用 matrix）。
     得分区深度：显式字段优先，否则按场地体系推断（WFDF 18m / USAU 25 码）。
+    image_size 传入时校验标定分辨率，不一致则自动缩放 H（标定在 A 分辨率做的，
+    用于 B 分辨率视频时必须换算，否则世界坐标完全错位）。
     """
     d = json.loads(Path(path).read_text(encoding="utf-8"))
     raw = d.get("homography") or d.get("matrix")
     if raw is None:
         raise ValueError(f"calibration json missing homography/matrix: {path}")
     H = np.array(raw, dtype=np.float64).reshape(3, 3)
+
+    cal_size = d.get("image_size")
+    if image_size and cal_size and len(cal_size) == 2:
+        cw, ch = float(cal_size[0]), float(cal_size[1])
+        vw, vh = float(image_size[0]), float(image_size[1])
+        if abs(cw - vw) > 1 or abs(ch - vh) > 1:
+            sx, sy = vw / cw, vh / ch
+            S = np.array([[sx, 0, 0], [0, sy, 0], [0, 0, 1.0]], dtype=np.float64)
+            H = H @ S  # 像素缩放后作用于世界映射
+
     fw, fh = d.get("field_size_m", [100.0, 37.0])
     if "end_zone_depth_m" in d:
         ez = float(d["end_zone_depth_m"])
@@ -54,7 +66,8 @@ def compute_events(doc: dict, calibration_path: Path,
                    config: PossessionConfig | None = None) -> dict:
     """doc = worker 产物（含 frames/disc_frames/fps/team_overrides）。
     返回 {"events": [...], "score": {team: n}}。"""
-    H, (fw, fh), ez = load_calibration(calibration_path)
+    vsize = (doc.get("width"), doc.get("height")) if doc.get("width") else None
+    H, (fw, fh), ez = load_calibration(calibration_path, image_size=vsize)
     fps = float(doc.get("fps") or 30.0)
     frames = doc.get("frames", {})
     disc_frames = doc.get("disc_frames", {})
@@ -76,6 +89,8 @@ def compute_events(doc: dict, calibration_path: Path,
     )
 
     out_events = []
+    margin = 5.0  # 米：场地外缓冲
+    disc_rejected = 0
     for fk in sorted(frames, key=int):
         idx = int(fk)
         players = []
@@ -89,11 +104,15 @@ def compute_events(doc: dict, calibration_path: Path,
         dd = disc_frames.get(fk)
         if dd is not None:
             wx, wy = px_to_world(H, dd["cx"], dd["cy"])
-            disc = DiscObservation(x=wx, y=wy, conf=dd.get("conf", 1.0), frame=idx)
+            if -margin <= wx <= fw + margin and -margin <= wy <= fh + margin:
+                disc = DiscObservation(x=wx, y=wy, conf=dd.get("conf", 1.0), frame=idx)
+            else:
+                disc_rejected += 1
         for e in eng.update(idx, players, disc):
             out_events.append({
                 "type": e.type.value, "frame": e.frame, "t_sec": round(e.frame / fps, 2),
                 "from_track": e.from_track, "to_track": e.to_track, "team": e.team,
                 "x": round(e.x, 2), "y": round(e.y, 2), "detail": e.detail,
             })
-    return {"events": out_events, "score": eng.score}
+    return {"events": out_events, "score": eng.score,
+            "disc_rejected_out_of_field": disc_rejected}

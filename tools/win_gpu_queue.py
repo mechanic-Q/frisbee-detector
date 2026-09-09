@@ -67,7 +67,7 @@ def train_11s():
         "--data", "configs/frisbee_merged_v2_win.yaml",
         "--model", "yolo11s.pt",
         "--box", "5", "--epochs", "30", "--patience", "8", "--close-mosaic", "5",
-        "--name", "bench_11s", "--cache", "--workers", "4",
+        "--name", "bench_11s", "--workers", "4",
     ], "11s-retrain")
 
 

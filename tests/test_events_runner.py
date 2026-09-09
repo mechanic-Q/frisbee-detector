@@ -139,3 +139,22 @@ def test_load_calibration_missing_matrix_raises(tmp_path):
     p.write_text(json.dumps({"field_size_m": [100, 37]}))
     with pytest.raises(ValueError, match="homography/matrix"):
         load_calibration(p)
+
+
+def test_compute_events_rejects_out_of_field_disc(tmp_path):
+    """投影到场地外的盘观测必须被丢弃（防误检污染事件）。"""
+    cal = make_calibration(tmp_path)
+    frames = {}
+    disc_frames = {}
+    # 盘在画面 (1490, 100) → 世界坐标远超场地 → 应被拒
+    for i in range(20):
+        x, y = px(30, 18)
+        frames[str(i)] = [{"track_id": 101, "bbox": [x - 20, y - 60, x + 20, y],
+                           "conf": 0.9, "cls": 0, "team_id": 0}]
+        disc_frames[str(i)] = {"cx": 1490.0, "cy": 100.0, "conf": 0.9,
+                               "bbox": [1485, 95, 1495, 105]}
+    doc = {"fps": 30.0, "frames": frames, "disc_frames": disc_frames,
+           "width": 1920, "height": 1080, "team_overrides": {}}
+    out = compute_events(doc, cal)
+    assert out["disc_rejected_out_of_field"] == 20
+    assert "possession_start" not in [e["type"] for e in out["events"]]

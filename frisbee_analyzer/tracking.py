@@ -134,15 +134,12 @@ def iter_player_and_disc_tracks(
     p_model = YOLO(str(player_weights))
     d_model = YOLO(str(disc_weights))
 
-    # 两个模型各自按帧推理；用 cap 逐帧读以对齐帧号（避免两个 stream 消费速度不同步）
+    # 单数据源逐帧：同一 cap 读出的帧分别喂两个模型，帧号天然对齐
+    # （此前用 model.track(source=...) 的 stream 生成器 + 另一个 cap 读取，两个解码器节奏不同会错位）
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
         raise RuntimeError(f"cannot open video: {video_path}")
-    fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     frame_idx = 0
-    p_track_kw = dict(conf=conf, imgsz=imgsz, classes=list(player_classes),
-                      tracker=tracker, persist=True, verbose=False)
-    p_gen = p_model.track(source=str(video_path), stream=True, **p_track_kw)
 
     while True:
         if cancel_check is not None and cancel_check():
@@ -151,17 +148,15 @@ def iter_player_and_disc_tracks(
         ok, frame = cap.read()
         if not ok:
             break
-        try:
-            res = next(p_gen)
-        except StopIteration:
-            res = None
 
+        p_res = p_model.track(frame, conf=conf, imgsz=imgsz, classes=list(player_classes),
+                              tracker=tracker, persist=True, verbose=False)[0]
         p_dets = []
-        if res is not None and res.boxes is not None and res.boxes.id is not None:
-            ids = res.boxes.id.int().cpu().tolist()
-            confs = res.boxes.conf.cpu().tolist()
-            boxes = res.boxes.xyxy.cpu().numpy()
-            clss = res.boxes.cls.int().cpu().tolist()
+        if p_res.boxes is not None and p_res.boxes.id is not None:
+            ids = p_res.boxes.id.int().cpu().tolist()
+            confs = p_res.boxes.conf.cpu().tolist()
+            boxes = p_res.boxes.xyxy.cpu().numpy()
+            clss = p_res.boxes.cls.int().cpu().tolist()
             for tid, c, box, cbin in zip(ids, confs, boxes, clss):
                 p_dets.append({
                     "track_id": int(tid),
