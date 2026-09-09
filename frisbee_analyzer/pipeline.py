@@ -192,13 +192,11 @@ def main(argv=None) -> int:
                         help="players_e4 权重：检测类别即队伍（0=红队 1=蓝队 2=裁判），跳过聚类")
     parser.add_argument("--min-y-frac", type=float, default=0.30,
                         help="启发式场内过滤：框底 y2 ≥ H*该值（0.45 会误切远场球员，迭代6 实测）")
-    parser.add_argument("--calibration", default=None,
-                        help="标定 JSON 路径：提供时场内过滤升级为场地多边形过滤，并启用事件统计")
     parser.add_argument("--disc-weights", default=None,
                         help="飞盘检测权重（提供则启用双模型联合跟踪 + 事件统计）")
     parser.add_argument("--disc-conf", type=float, default=0.35, help="飞盘检测置信度阈值")
     parser.add_argument("--calibration", default=None,
-                        help="场地标定 json（事件统计需要；见 configs/homography/）")
+                        help="场地标定 json：场内过滤升级为多边形过滤；事件统计需要")
     parser.add_argument("--team-only", metavar="TRACKS_JSON", default=None,
                         help="跳过跟踪，只对已有 tracks.json 重算分队")
     args = parser.parse_args(argv)
