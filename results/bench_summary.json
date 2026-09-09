@@ -1,0 +1,44 @@
+{
+ "yolov8s": {
+  "mAP50": 0.6386,
+  "mAP50-95": 0.3378,
+  "P": 0.7321,
+  "R": 0.5835,
+  "params_M": 11.13,
+  "fps_1080p": 13.6,
+  "weights": "/home/lmr/comfy/ComfyUI/runs/detect/runs/bench_v8s/weights/best.pt"
+ },
+ "yolo11s": {
+  "mAP50": 0.6122,
+  "mAP50-95": 0.295,
+  "P": 0.7287,
+  "R": 0.5528,
+  "params_M": 9.41,
+  "weights": "runs/detect/bench_11s/weights/best.pt",
+  "note": "retrained Sep 10 (30ep, windows native); \u6743\u91cd\u9057\u5931\u540e\u540c\u914d\u65b9\u8865\u6d4b"
+ },
+ "yolo26s": {
+  "mAP50": 0.5697,
+  "mAP50-95": 0.2955,
+  "P": 0.6988,
+  "R": 0.5336,
+  "params_M": 9.47,
+  "fps_1080p": 14.1,
+  "weights": "/home/lmr/comfy/ComfyUI/runs/detect/runs/bench_26s/weights/best.pt"
+ },
+ "rfdetr-small": {
+  "mAP50": 0.7432,
+  "mAP50-95": 0.5714,
+  "params_M": 31.79,
+  "fps_1080p_equivalent": 39.8,
+  "resolution": 672,
+  "weights": "/mnt/e/frisbee-detector/data/bili_final_test/rfdetr_out/checkpoint_best_ema.pth",
+  "note": "fps \u4e3a 672 \u5206\u8fa8\u7387\u76f4\u63a8\uff0c\u4e0e ultralytics@1280 \u4e0d\u540c\u5206\u8fa8\u7387\uff0c\u4ec5\u4f9b\u91cf\u7ea7\u53c2\u8003"
+ },
+ "_meta": {
+  "dataset": "frisbee_merged_v2 (train 4629 / test 476, \u540c\u6807\u5c3a test split)",
+  "recipe": "box=5 epochs=30 patience=8 imgsz=1280(batch2) | rfdetr: res672 bs4 ep30",
+  "weights_policy": "\u5168\u90e8\u5b98\u65b9 COCO \u9884\u8bad\u7ec3\u9ed8\u8ba4\u6743\u91cd\u8d77\u8dd1\uff08\u540c\u4e00\u6c34\u5e73\uff09",
+  "fps_note": "ultralytics@1280 \u76f4\u63a8 vs rfdetr@672 \u76f4\u63a8\uff0c\u5206\u8fa8\u7387\u4e0d\u540c\u4ec5\u4f5c\u91cf\u7ea7\u53c2\u8003"
+ }
+}
