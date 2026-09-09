@@ -43,7 +43,7 @@ def draw_detections(painter: QPainter, dets: list[dict], video_w: float, video_h
     painter.setFont(font)
     metrics = QFontMetrics(font)
     named = {"red": QColor(255, 72, 72), "blue": QColor(80, 148, 255),
-             "other": QColor(170, 170, 170)}
+             "dark": QColor(156, 224, 132), "other": QColor(170, 170, 170)}
     for det in dets:
         x1, y1, x2, y2 = det["bbox"]
         team = det.get("team_id")
