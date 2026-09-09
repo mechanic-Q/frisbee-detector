@@ -47,6 +47,8 @@ def run(args, stream=None) -> int:
         imgsz=args.imgsz,
         max_frames=args.max_frames,
         classes=tuple(args.classes),
+        tile_grid=args.tile_grid,
+        tile_conf=args.tile_conf,
     ):
         frames[str(idx)] = dets
         if idx % PROGRESS_EVERY == 0:
@@ -130,6 +132,9 @@ def main(argv=None) -> int:
     parser.add_argument("--imgsz", type=int, default=1280)
     parser.add_argument("--max-frames", type=int, default=None, help="调试用：只处理前 N 帧")
     parser.add_argument("--classes", default="0", help="检测类别过滤（逗号分隔；players_e4 权重用 0,1,2）")
+    parser.add_argument("--tile-grid", type=int, default=0,
+                        help="切片检测网格（2=2x2，远场召回 +29~33%%；0=关闭）")
+    parser.add_argument("--tile-conf", type=float, default=0.3, help="切片检测置信度")
     parser.add_argument("--team-from-cls", action="store_true",
                         help="players_e4 权重：检测类别即队伍（0=红队 1=蓝队 2=裁判），跳过聚类")
     parser.add_argument("--team-only", metavar="TRACKS_JSON", default=None,
