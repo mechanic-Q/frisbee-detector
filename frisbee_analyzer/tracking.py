@@ -146,6 +146,7 @@ def iter_player_tracks(
     if tracker is None:
         tracker = make_tracker_config(conf)
     model = YOLO(str(weights))
+    _tile_model = None  # 切片用独立实例（共用会与 track 的持久状态死锁）
     frame_idx = 0
     for res in model.track(
         source=str(video_path),
@@ -173,9 +174,12 @@ def iter_player_tracks(
                     "cls": int(cbin),
                 })
 
-        if tile_grid > 0 and res.orig_img is not None:
-            # 切片补漏：与整帧/已跟踪框 IoU<0.5 的切片结果作为补框（track_id=-1）
-            for box, cf, cl in tiled_detect(model, res.orig_img, tile_conf, imgsz,
+        if tile_grid > 0:  # 切片补漏（远场小目标召回 +29~33%，track_id=-1）
+            # 用独立 YOLO 实例做切片 predict：与 model.track(persist=True) 共用实例会死锁
+            # （2026-09-09 实测：GPU 84% 但 38 分钟无进度、CPU 0%）
+            if _tile_model is None:
+                _tile_model = YOLO(str(weights))
+            for box, cf, cl in tiled_detect(_tile_model, res.orig_img, tile_conf, imgsz,
                                             classes, grid=tile_grid):
                 if cf < tile_conf:
                     continue
@@ -219,6 +223,7 @@ def iter_player_and_disc_tracks(
 
     p_model = YOLO(str(player_weights))
     d_model = YOLO(str(disc_weights))
+    tile_model = None  # 切片用独立实例（与 p_model.track 共用会死锁）
 
     # 单数据源逐帧：同一 cap 读出的帧分别喂两个模型，帧号天然对齐
     # （此前用 model.track(source=...) 的 stream 生成器 + 另一个 cap 读取，两个解码器节奏不同会错位）
@@ -252,7 +257,9 @@ def iter_player_and_disc_tracks(
                 })
 
         if tile_grid > 0:  # 切片补漏（远场小目标召回 +29~33%，track_id=-1）
-            for box, cf, cl in tiled_detect(p_model, frame, tile_conf, imgsz,
+            if tile_model is None:
+                tile_model = YOLO(str(player_weights))
+            for box, cf, cl in tiled_detect(tile_model, frame, tile_conf, imgsz,
                                             player_classes, grid=tile_grid):
                 if cf < tile_conf:
                     continue
