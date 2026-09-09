@@ -520,6 +520,15 @@
 - **纯开源备选清单**（后续可测）：D-FINE（ICLR 2025, Apache-2.0）、RT-DETR-Paddle（Apache-2.0，注意无 s 尺寸）
 - **AGPL 红线备忘**：当前研究/内部使用无影响；对外分发闭源版本前必须完成 RF-DETR 转正或购买 Ultralytics 授权
 
+### 11.4b 场线关键点模型（E5 phase-3 合成数据档）——验证成功（09-09 23:40）
+
+- 训练数据：合成场渲染器生成 **5,000 训练 + 500 验证帧**（零人工标注，含遮挡/模糊/噪声增广）
+- 模型：yolov8s-pose，8 关键点回归，60 epochs，~1.7min/epoch
+- **验证集 pose mAP50-95 = 0.472 / mAP50 = 0.624**（合成 held-out）
+- 意义：E5-v0 证伪的"免训练 Hough 路线"的替代路线（合成数据训练档）**首次闭环成功**——
+  纯合成 → 场地关键点检测能力成立。下一步：真实帧泛化目检 + 与自动标定管线（auto_calibrate.py）
+  的集成（用关键点替换 Hough 线匹配）。
+
 ### 11.5 事故与修复记录（队列可靠性）
 
 连环崩溃最终根因链：mlflow 新版 file-store 门禁杀训练启动回调（修复：`MLFLOW_ALLOW_FILE_STORE=true`）→ WSL2 GPU-PV 多进程 CUDA 并发不稳定（修复：严格串行+GPU 空闲守卫+全局 flock）→ watcher 日志匹配误触发（教训：完成标记用文件不用 grep）→ GUI 会话未走锁占用 GPU（修复：协调文件+其 worker 已自动套锁）。prod 恢复的 yolo CLI GreenSocket 崩溃（修复：python API resume）。11s 权重遗失（修复：同配方补测中）。**系统性教训：多会话共享 GPU 必须全部走 gpu_run.sh 锁；完成信号用标记文件。**

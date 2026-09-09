@@ -1,4 +1,4 @@
-path: E:/frisbee-detector/data/datasets/pitch_kp
+path: /mnt/e/frisbee-detector/data/datasets/pitch_kp
 train: images/train
 val: images/val
 kpt_shape: [8, 3]
