@@ -13,11 +13,22 @@ from .events import DiscObservation, EndZone, EventType, MatchEventEngine, Playe
 
 
 def load_calibration(path: Path) -> tuple:
-    """读项目标定 json → (H 单应矩阵 3x3, field_size_m, end_zone_depth_m)"""
+    """读项目标定 json → (H 单应矩阵 3x3, field_size_m, end_zone_depth_m)
+
+    兼容字段名：homography / matrix（现有 tools/calibrate_field.py 产物用 matrix）。
+    得分区深度：显式字段优先，否则按场地体系推断（WFDF 18m / USAU 25 码）。
+    """
     d = json.loads(Path(path).read_text(encoding="utf-8"))
-    H = np.array(d["homography"], dtype=np.float64).reshape(3, 3)
+    raw = d.get("homography") or d.get("matrix")
+    if raw is None:
+        raise ValueError(f"calibration json missing homography/matrix: {path}")
+    H = np.array(raw, dtype=np.float64).reshape(3, 3)
     fw, fh = d.get("field_size_m", [100.0, 37.0])
-    ez = float(d.get("end_zone_depth_m", 18.0))
+    if "end_zone_depth_m" in d:
+        ez = float(d["end_zone_depth_m"])
+    else:
+        # WFDF 标准 18m；USAU 规则 25 码 ≈ 22.86m。默认 WFDF。
+        ez = 22.86 if d.get("ruleset", "wfdf").lower() in ("usau", "usa") else 18.0
     return H, (float(fw), float(fh)), ez
 
 

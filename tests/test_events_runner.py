@@ -103,3 +103,39 @@ def test_compute_events_no_disc_yields_no_false_possession(tmp_path):
     assert "possession_start" not in types
     assert "transfer" not in types
     assert out["score"] == {0: 0, 1: 0}
+
+
+def test_load_calibration_accepts_matrix_field(tmp_path):
+    """现有 calibrate_field.py 产物用 'matrix' 字段——必须兼容。"""
+    import cv2
+    src = np.array([[0, 0], [1000, 0], [1000, 370], [0, 370]], dtype=np.float64)
+    dst = np.array([[0, 0], [100, 0], [100, 37], [0, 37]], dtype=np.float64)
+    H, _ = cv2.findHomography(src, dst, 0)
+    p = tmp_path / "calib_matrix.json"
+    p.write_text(json.dumps({
+        "video": "x.mp4", "image_size": [1000, 370], "field_size_m": [100, 37],
+        "points": [], "matrix": np.asarray(H).reshape(3, 3).tolist(),
+        "reprojection_error_px": 0.0,
+    }))
+    Hm, (fw, fh), ez = load_calibration(p)
+    assert Hm.shape == (3, 3) and (fw, fh) == (100.0, 37.0)
+    assert ez == 18.0  # 默认 WFDF
+
+
+def test_load_calibration_usau_ruleset(tmp_path):
+    import cv2
+    src = np.array([[0, 0], [1000, 0], [1000, 370], [0, 370]], dtype=np.float64)
+    dst = np.array([[0, 0], [100, 0], [100, 37], [0, 37]], dtype=np.float64)
+    H, _ = cv2.findHomography(src, dst, 0)
+    p = tmp_path / "calib_usau.json"
+    p.write_text(json.dumps({"matrix": np.asarray(H).reshape(3, 3).tolist(),
+                             "field_size_m": [100, 37], "ruleset": "usau"}))
+    _, _, ez = load_calibration(p)
+    assert abs(ez - 22.86) < 0.01
+
+
+def test_load_calibration_missing_matrix_raises(tmp_path):
+    p = tmp_path / "bad.json"
+    p.write_text(json.dumps({"field_size_m": [100, 37]}))
+    with pytest.raises(ValueError, match="homography/matrix"):
+        load_calibration(p)

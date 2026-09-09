@@ -1,0 +1,7 @@
+path: E:/frisbee-detector/data/datasets/pitch_kp
+train: images/train
+val: images/val
+kpt_shape: [8, 3]
+flip_idx: [1, 0, 3, 2, 5, 4, 7, 6]
+nc: 1
+names: [pitch]
