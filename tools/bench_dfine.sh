@@ -6,7 +6,7 @@ LOG=/mnt/e/frisbee-detector/data/bili_final_test
 
 # 等 fix11s 先完成（它在前面排队）
 while ! grep -q "11s re-eval done" "$LOG/bench_status.log" 2>/dev/null; do
-  sleep 60
+  sleep 120
 done
 echo "[$(date +%H:%M:%S)] D-FINE 开始（fix11s 已完成）" >> "$LOG/bench_status.log"
 

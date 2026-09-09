@@ -91,15 +91,30 @@ def run(args, stream=None) -> int:
         team_colors = assign_teams(frames, video, cancel_check=None,
                                    log=lambda m: protocol.emit(protocol.log(m), stream))
 
-    # 场内过滤（默认开启）：观众区/过小框不进入产物——方案 §8.1 场地过滤近似
-    from .filters import filter_dets
+    # 场内过滤（默认开启）：观众区/过小框不进入产物——方案 §8.1 场地过滤近似。
+    # 有标定 → 场地多边形过滤（脚点反投影，远场球员不再被 y 阈值误切，迭代6 实测 89,933 框）；
+    # 无标定 → 放宽启发式（min_y_frac 0.45→args.min_y_frac，默认 0.30）。
+    from .filters import filter_dets, FIELD_POLYGON_M
 
     fh = info["height"]
+    matrix = polygon = None
+    if getattr(args, "calibration", None):
+        try:
+            from utils.homography import load_calibration
+
+            calib = load_calibration(win_to_wsl(args.calibration))
+            matrix, polygon = calib["matrix"], FIELD_POLYGON_M
+        except Exception as e:  # noqa: BLE001 —— 标定读取失败则退回启发式
+            protocol.emit(protocol.log(f"field filter: calibration ignored ({e})"), stream)
     total_before = sum(len(d) for d in frames.values())
     for key, dets in frames.items():
-        frames[key] = filter_dets(dets, fh, min_height=fh * 0.083)
+        frames[key] = filter_dets(
+            dets, fh, matrix=matrix, polygon=polygon,
+            min_height=fh * 0.083, min_y_frac=args.min_y_frac,
+        )
     total_after = sum(len(d) for d in frames.values())
-    protocol.emit(protocol.log(f"field filter: {total_before} -> {total_after} dets"), stream)
+    route = "polygon(calibrated)" if matrix is not None else f"heuristic(min_y_frac={args.min_y_frac})"
+    protocol.emit(protocol.log(f"field filter({route}): {total_before} -> {total_after} dets"), stream)
 
     out_dir = Path(win_to_wsl(args.output_dir)) if args.output_dir else Path("runs/gui_analysis") / Path(video).stem
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -175,6 +190,10 @@ def main(argv=None) -> int:
     parser.add_argument("--tile-conf", type=float, default=0.3, help="切片检测置信度")
     parser.add_argument("--team-from-cls", action="store_true",
                         help="players_e4 权重：检测类别即队伍（0=红队 1=蓝队 2=裁判），跳过聚类")
+    parser.add_argument("--min-y-frac", type=float, default=0.30,
+                        help="启发式场内过滤：框底 y2 ≥ H*该值（0.45 会误切远场球员，迭代6 实测）")
+    parser.add_argument("--calibration", default=None,
+                        help="标定 JSON 路径：提供时场内过滤升级为场地多边形过滤，并启用事件统计")
     parser.add_argument("--disc-weights", default=None,
                         help="飞盘检测权重（提供则启用双模型联合跟踪 + 事件统计）")
     parser.add_argument("--disc-conf", type=float, default=0.35, help="飞盘检测置信度阈值")
