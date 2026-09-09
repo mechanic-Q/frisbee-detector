@@ -95,6 +95,26 @@ def test_label_from_color_weak_separation_returns_none():
     assert label_from_color(feats) == (None, None)
 
 
+def test_label_from_color_rejects_signal_less_clusters():
+    # 深色衫素材反例：两簇"可分"但红蓝信号都趋零且无对比 → 信号/对比门拒绝
+    feats = {i: ((0.02, 0.01) if i < 10 else (0.01, 0.02)) for i in range(1, 21)}
+    mapping, colors = label_from_color(feats, min_sep=0.01)  # 强行放宽分离度门
+    assert mapping is None and colors is None
+
+
+def test_label_from_color_accepts_one_colored_one_dark():
+    # 55-56min 实测正例：红队 rf=0.295 vs 深色队 rf=0.028（对比 ~10x）→ 应采信颜色通道
+    feats = {i: (0.295, 0.002) for i in range(1, 11)}
+    feats.update({i: (0.028, 0.016) for i in range(11, 21)})
+    mapping, colors = label_from_color(feats)
+    assert mapping is not None and len(colors) == 2
+    # 关键断言：红衣队（team0=主色偏红序）与深色队分属不同 team，且队号稳定
+    red_teams = {mapping[i] for i in range(1, 11)}
+    dark_teams = {mapping[i] for i in range(11, 21)}
+    assert red_teams == {0} and dark_teams == {1}  # rf-bf 降序 → 红簇=team0
+    assert colors["0"] == "red"  # 仍须被信号门拒绝
+
+
 def test_label_from_color_too_few_tracks():
     assert label_from_color({1: (0.3, 0.0)}) == (None, None)
 
