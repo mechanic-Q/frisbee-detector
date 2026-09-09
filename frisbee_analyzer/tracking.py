@@ -80,3 +80,86 @@ def iter_player_tracks(
         frame_idx += 1
         if max_frames is not None and frame_idx >= max_frames:
             break
+
+
+def iter_player_and_disc_tracks(
+    video_path: str | Path,
+    player_weights: str = "yolo26x.pt",
+    disc_weights: str = "runs/detect/frisbee_det_p2_shadow_v1/weights/best.pt",
+    conf: float = 0.25,
+    disc_conf: float = 0.35,
+    imgsz: int = 1280,
+    tracker: str = "botsort.yaml",
+    cancel_check=None,
+    max_frames: int | None = None,
+    player_classes: tuple[int, ...] = (0,),
+    disc_classes: tuple[int, ...] | None = None,
+):
+    """双模型单遍联合跟踪：球员（BoT-SORT 多目标）+ 飞盘（单目标跟踪）。
+
+    逐帧产出 (frame_idx, player_dets, disc_det)。disc_det 为 None 或
+    {"track_id","bbox","conf","cls","cx","cy"}（中心点便于事件引擎消费）。
+    飞盘用独立模型/阈值——飞盘是小目标且与 person 类无重叠，不能共用一个检测器。
+    """
+    from ultralytics import YOLO
+
+    p_model = YOLO(str(player_weights))
+    d_model = YOLO(str(disc_weights))
+
+    # 两个模型各自按帧推理；用 cap 逐帧读以对齐帧号（避免两个 stream 消费速度不同步）
+    cap = cv2.VideoCapture(str(video_path))
+    if not cap.isOpened():
+        raise RuntimeError(f"cannot open video: {video_path}")
+    fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+    frame_idx = 0
+    p_track_kw = dict(conf=conf, imgsz=imgsz, classes=list(player_classes),
+                      tracker=tracker, persist=True, verbose=False)
+    p_gen = p_model.track(source=str(video_path), stream=True, **p_track_kw)
+
+    while True:
+        if cancel_check is not None and cancel_check():
+            cap.release()
+            raise WorkerCancelled(f"cancelled at frame {frame_idx}")
+        ok, frame = cap.read()
+        if not ok:
+            break
+        try:
+            res = next(p_gen)
+        except StopIteration:
+            res = None
+
+        p_dets = []
+        if res is not None and res.boxes is not None and res.boxes.id is not None:
+            ids = res.boxes.id.int().cpu().tolist()
+            confs = res.boxes.conf.cpu().tolist()
+            boxes = res.boxes.xyxy.cpu().numpy()
+            clss = res.boxes.cls.int().cpu().tolist()
+            for tid, c, box, cbin in zip(ids, confs, boxes, clss):
+                p_dets.append({
+                    "track_id": int(tid),
+                    "bbox": [round(float(v), 1) for v in box],
+                    "conf": round(float(c), 3),
+                    "cls": int(cbin),
+                })
+
+        disc_det = None
+        d_res = d_model.predict(frame, conf=disc_conf, imgsz=imgsz,
+                                classes=list(disc_classes) if disc_classes else None,
+                                verbose=False)[0]
+        if d_res.boxes is not None and len(d_res.boxes):
+            # 单盘假设：取置信度最高的检测
+            best_i = int(d_res.boxes.conf.argmax().item())
+            box = d_res.boxes.xyxy[best_i].cpu().numpy()
+            disc_det = {
+                "bbox": [round(float(v), 1) for v in box],
+                "conf": round(float(d_res.boxes.conf[best_i].item()), 3),
+                "cls": int(d_res.boxes.cls[best_i].item()),
+                "cx": round(float((box[0] + box[2]) / 2), 1),
+                "cy": round(float((box[1] + box[3]) / 2), 1),
+            }
+
+        yield frame_idx, p_dets, disc_det
+        frame_idx += 1
+        if max_frames is not None and frame_idx >= max_frames:
+            break
+    cap.release()

@@ -1,0 +1,141 @@
+{
+ "input": "E:\\frisbee-detector\\.worktrees\\gui-v0\\runs\\gui_analysis\\accept_10min\\tracks.json",
+ "frames": 18004,
+ "duration_s": 600.1,
+ "tracks": 897,
+ "engine_events": {
+  "disc_on_ground": 71
+ },
+ "engine_total": 71,
+ "gt_events": {
+  "score": 14,
+  "turnover": 1
+ },
+ "gt_window_note": "E6 GT 覆盖整场 47min；本 tracks 只覆盖其前若干分钟，数量不可直接比",
+ "score_state": {
+  "0": 0,
+  "1": 0
+ },
+ "sample_events": [
+  {
+   "type": "disc_on_ground",
+   "frame": 811,
+   "from": null,
+   "to": null,
+   "team": null,
+   "detail": ""
+  },
+  {
+   "type": "disc_on_ground",
+   "frame": 867,
+   "from": null,
+   "to": null,
+   "team": null,
+   "detail": ""
+  },
+  {
+   "type": "disc_on_ground",
+   "frame": 1470,
+   "from": null,
+   "to": null,
+   "team": null,
+   "detail": ""
+  },
+  {
+   "type": "disc_on_ground",
+   "frame": 1508,
+   "from": null,
+   "to": null,
+   "team": null,
+   "detail": ""
+  },
+  {
+   "type": "disc_on_ground",
+   "frame": 1537,
+   "from": null,
+   "to": null,
+   "team": null,
+   "detail": ""
+  },
+  {
+   "type": "disc_on_ground",
+   "frame": 1557,
+   "from": null,
+   "to": null,
+   "team": null,
+   "detail": ""
+  },
+  {
+   "type": "disc_on_ground",
+   "frame": 3037,
+   "from": null,
+   "to": null,
+   "team": null,
+   "detail": ""
+  },
+  {
+   "type": "disc_on_ground",
+   "frame": 3147,
+   "from": null,
+   "to": null,
+   "team": null,
+   "detail": ""
+  },
+  {
+   "type": "disc_on_ground",
+   "frame": 3234,
+   "from": null,
+   "to": null,
+   "team": null,
+   "detail": ""
+  },
+  {
+   "type": "disc_on_ground",
+   "frame": 3303,
+   "from": null,
+   "to": null,
+   "team": null,
+   "detail": ""
+  },
+  {
+   "type": "disc_on_ground",
+   "frame": 3328,
+   "from": null,
+   "to": null,
+   "team": null,
+   "detail": ""
+  },
+  {
+   "type": "disc_on_ground",
+   "frame": 3821,
+   "from": null,
+   "to": null,
+   "team": null,
+   "detail": ""
+  },
+  {
+   "type": "disc_on_ground",
+   "frame": 3830,
+   "from": null,
+   "to": null,
+   "team": null,
+   "detail": ""
+  },
+  {
+   "type": "disc_on_ground",
+   "frame": 5598,
+   "from": null,
+   "to": null,
+   "team": null,
+   "detail": ""
+  },
+  {
+   "type": "disc_on_ground",
+   "frame": 5638,
+   "from": null,
+   "to": null,
+   "team": null,
+   "detail": ""
+  }
+ ]
+}

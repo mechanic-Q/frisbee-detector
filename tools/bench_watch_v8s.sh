@@ -21,7 +21,7 @@ bash tools/gpu_run.sh bench-v8s \
     --cache ram --workers 4 \
   > "$LOG/train_bench_v8s.log" 2>&1
 D=/home/lmr/comfy/ComfyUI/runs/detect/runs/bench_v8s
-if [ -d "$D" ]; then rm -rf "runs/detect/bench_v8s"; cp -r "$D" "runs/detect/bench_v8s"; fi
+bash tools/collect_weights.sh bench_v8s
 echo "[$(date +%H:%M:%S)] trained bench_v8s(cache)" >> "$LOG/bench_status.log"
 
 wait_gpu_free

@@ -25,7 +25,7 @@ train_one () {
       --box 5 --epochs 30 --patience 8 --close-mosaic 5 --name "bench_$NAME" --no-plots \
     > "$LOG/train_bench_$NAME.log" 2>&1
   local D=/home/lmr/comfy/ComfyUI/runs/detect/runs/"bench_$NAME"
-  if [ -d "$D" ]; then rm -rf "runs/detect/bench_$NAME"; cp -r "$D" "runs/detect/bench_$NAME"; fi
+  bash tools/collect_weights.sh "bench_$NAME"
   echo "[$(date +%H:%M:%S)] trained bench_$NAME" >> "$LOG/bench_status.log"
 }
 

@@ -15,10 +15,10 @@ wait_gpu_free "bench-11s-retrain"
 bash tools/gpu_run.sh bench-11s-re \
   python3 models/train.py --data configs/frisbee_merged_v2.yaml --model yolo11s.pt \
     --box 5 --epochs 30 --patience 8 --close-mosaic 5 --name bench_11s --no-plots \
-    --cache ram --workers 4 \
+    --cache --workers 4 \
   > "$LOG/train_bench_11s.log" 2>&1
 D=/home/lmr/comfy/ComfyUI/runs/detect/runs/bench_11s
-if [ -d "$D" ]; then rm -rf "runs/detect/bench_11s"; cp -r "$D" "runs/detect/bench_11s"; fi
+bash tools/collect_weights.sh bench_11s
 echo "[$(date +%H:%M:%S)] retrained bench_11s" >> "$LOG/bench_status.log"
 
 wait_gpu_free "eval-11s"

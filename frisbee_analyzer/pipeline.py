@@ -40,18 +40,41 @@ def run(args, stream=None) -> int:
     from .team import assign_teams  # 惰性导入，保持 --help 轻量
 
     frames: dict[str, list] = {}
-    for idx, dets in iter_player_tracks(
-        video,
-        weights=args.weights,
-        conf=args.conf,
-        imgsz=args.imgsz,
-        max_frames=args.max_frames,
-        classes=tuple(args.classes),
-    ):
-        frames[str(idx)] = dets
-        if idx % PROGRESS_EVERY == 0:
-            protocol.emit(protocol.progress(idx, total), stream)
+    disc_frames: dict[str, dict] = {}
+    if getattr(args, "disc_weights", None):
+        # 双模型路径：球员 + 飞盘联合跟踪（事件统计的前提，见 docs/2026-09-09-engine-validation.md）
+        from .tracking import iter_player_and_disc_tracks
+
+        for idx, p_dets, d_det in iter_player_and_disc_tracks(
+            video,
+            player_weights=args.weights,
+            disc_weights=args.disc_weights,
+            conf=args.conf,
+            disc_conf=args.disc_conf,
+            imgsz=args.imgsz,
+            max_frames=args.max_frames,
+            player_classes=tuple(args.classes),
+        ):
+            frames[str(idx)] = p_dets
+            if d_det is not None:
+                disc_frames[str(idx)] = d_det
+            if idx % PROGRESS_EVERY == 0:
+                protocol.emit(protocol.progress(idx, total), stream)
+    else:
+        for idx, dets in iter_player_tracks(
+            video,
+            weights=args.weights,
+            conf=args.conf,
+            imgsz=args.imgsz,
+            max_frames=args.max_frames,
+            classes=tuple(args.classes),
+        ):
+            frames[str(idx)] = dets
+            if idx % PROGRESS_EVERY == 0:
+                protocol.emit(protocol.progress(idx, total), stream)
     protocol.emit(protocol.progress(total, total), stream)
+    if disc_frames:
+        protocol.emit(protocol.log(f"disc: {len(disc_frames)}/{len(frames)} frames with detection"), stream)
 
     if args.team_from_cls:
         from .team import apply_team_from_cls
@@ -88,7 +111,22 @@ def run(args, stream=None) -> int:
         "team_colors": team_colors,
         "team_overrides": {},
         "frames": frames,
+        "disc_frames": disc_frames,
     }
+
+    # 事件统计（需飞盘轨迹；无盘则不产生事件——见验证报告）
+    if disc_frames and getattr(args, "calibration", None):
+        try:
+            from .events_runner import compute_events
+
+            events_doc = compute_events(doc, Path(win_to_wsl(args.calibration)))
+            doc["events"] = events_doc["events"]
+            doc["score"] = events_doc["score"]
+            protocol.emit(protocol.log(
+                f"events: {len(events_doc['events'])} (score={events_doc['score']})"), stream)
+        except Exception as e:  # noqa: BLE001 —— 事件统计失败不拖垮产物落盘
+            protocol.emit(protocol.log(f"events: failed ({type(e).__name__}: {e})"), stream)
+
     tmp_path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
     tmp_path.replace(out_path)  # 原子写：中断不会留下半截 JSON
 
@@ -132,6 +170,11 @@ def main(argv=None) -> int:
     parser.add_argument("--classes", default="0", help="检测类别过滤（逗号分隔；players_e4 权重用 0,1,2）")
     parser.add_argument("--team-from-cls", action="store_true",
                         help="players_e4 权重：检测类别即队伍（0=红队 1=蓝队 2=裁判），跳过聚类")
+    parser.add_argument("--disc-weights", default=None,
+                        help="飞盘检测权重（提供则启用双模型联合跟踪 + 事件统计）")
+    parser.add_argument("--disc-conf", type=float, default=0.35, help="飞盘检测置信度阈值")
+    parser.add_argument("--calibration", default=None,
+                        help="场地标定 json（事件统计需要；见 configs/homography/）")
     parser.add_argument("--team-only", metavar="TRACKS_JSON", default=None,
                         help="跳过跟踪，只对已有 tracks.json 重算分队")
     args = parser.parse_args(argv)
