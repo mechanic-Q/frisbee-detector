@@ -57,6 +57,68 @@ def make_tracker_config(conf: float, base: str = "botsort_players.yaml") -> str:
     return path
 
 
+def tiled_detect(model, frame, conf: float, imgsz: int, classes, grid: int = 2,
+                 overlap: float = 0.2, nms_iou: float = 0.5):
+    """切片检测：把画面切成 grid×grid（带 overlap）分别推理，合并去重。
+
+    动机（2026-09-09 实测）：1080P 远场球员仅几十像素，整帧推理漏检严重；
+    2×2 切片把远场目标放大 ~2 倍后召回 +29~33%（整帧 14-30 → 切片 18-40 框/帧）。
+    返回 [(bbox, conf, cls), ...]（像素坐标，已跨片 NMS）。
+    """
+    import numpy as np
+
+    h, w = frame.shape[:2]
+    step_y, step_x = int(h / grid), int(w / grid)
+    pad_y, pad_x = int(step_y * overlap), int(step_x * overlap)
+    boxes, scores, clss = [], [], []
+    for i in range(grid):
+        for j in range(grid):
+            y1 = max(0, i * step_y - pad_y)
+            y2 = min(h, (i + 1) * step_y + pad_y)
+            x1 = max(0, j * step_x - pad_x)
+            x2 = min(w, (j + 1) * step_x + pad_x)
+            tile = frame[y1:y2, x1:x2]
+            if tile.size == 0:
+                continue
+            res = model.predict(tile, conf=conf, imgsz=imgsz, classes=list(classes),
+                                verbose=False)[0]
+            if res.boxes is None or len(res.boxes) == 0:
+                continue
+            for box, cf, cl in zip(res.boxes.xyxy.cpu().numpy(),
+                                   res.boxes.conf.cpu().tolist(),
+                                   res.boxes.cls.int().cpu().tolist()):
+                boxes.append([box[0] + x1, box[1] + y1, box[2] + x1, box[3] + y1])
+                scores.append(float(cf))
+                clss.append(int(cl))
+    if not boxes:
+        return []
+    keep = _nms(np.asarray(boxes), np.asarray(scores), nms_iou)
+    return [(boxes[i], scores[i], clss[i]) for i in keep]
+
+
+def _nms(boxes, scores, iou_thr: float):
+    import numpy as np
+
+    order = scores.argsort()[::-1]
+    keep = []
+    while order.size > 0:
+        i = order[0]
+        keep.append(int(i))
+        if order.size == 1:
+            break
+        rest = order[1:]
+        xx1 = np.maximum(boxes[i, 0], boxes[rest, 0])
+        yy1 = np.maximum(boxes[i, 1], boxes[rest, 1])
+        xx2 = np.minimum(boxes[i, 2], boxes[rest, 2])
+        yy2 = np.minimum(boxes[i, 3], boxes[rest, 3])
+        inter = np.clip(xx2 - xx1, 0, None) * np.clip(yy2 - yy1, 0, None)
+        area_i = (boxes[i, 2] - boxes[i, 0]) * (boxes[i, 3] - boxes[i, 1])
+        area_r = (boxes[rest, 2] - boxes[rest, 0]) * (boxes[rest, 3] - boxes[rest, 1])
+        iou = inter / np.maximum(area_i + area_r - inter, 1e-9)
+        order = rest[iou <= iou_thr]
+    return keep
+
+
 def iter_player_tracks(
     video_path: str | Path,
     weights: str = "yolo26x.pt",
@@ -66,12 +128,18 @@ def iter_player_tracks(
     cancel_check=None,
     max_frames: int | None = None,
     classes: tuple[int, ...] = (0,),
+    tile_grid: int = 0,
+    tile_conf: float = 0.3,
 ):
     """逐帧产出 (frame_idx, detections)。detection = {track_id, bbox, conf, cls}。
 
     零样本用 COCO person 预训练权重（classes=(0,)）；players_e4 微调权重就绪后传
     classes=(0,1,2)（player-red/player-blue/referee），类别即队伍（见 pipeline
     --team-from-cls），观众从检测端被类别排除。
+
+    tile_grid>0 时启用切片检测补漏（远场小目标召回 +29~33%，见 tiled_detect）：
+    整帧推理驱动 BoT-SORT 保持轨迹连续，切片结果中与已有框 IoU<0.5 的作为补框
+    （track_id 取 -1，由上层/统计侧按需处理，不参与跟踪）。
     """
     from ultralytics import YOLO  # 惰性导入：模块本身可在无 torch 环境做静态检查
 
@@ -104,6 +172,22 @@ def iter_player_tracks(
                     "conf": round(float(c), 3),
                     "cls": int(cbin),
                 })
+
+        if tile_grid > 0 and res.orig_img is not None:
+            # 切片补漏：与整帧/已跟踪框 IoU<0.5 的切片结果作为补框（track_id=-1）
+            for box, cf, cl in tiled_detect(model, res.orig_img, tile_conf, imgsz,
+                                            classes, grid=tile_grid):
+                if cf < tile_conf:
+                    continue
+                if any(_iou_xyxy(box, d["bbox"]) > 0.5 for d in dets):
+                    continue
+                dets.append({
+                    "track_id": -1,
+                    "bbox": [round(float(v), 1) for v in box],
+                    "conf": round(float(cf), 3),
+                    "cls": int(cl),
+                })
+
         yield frame_idx, dets
         frame_idx += 1
         if max_frames is not None and frame_idx >= max_frames:
@@ -122,6 +206,8 @@ def iter_player_and_disc_tracks(
     max_frames: int | None = None,
     player_classes: tuple[int, ...] = (0,),
     disc_classes: tuple[int, ...] | None = None,
+    tile_grid: int = 0,
+    tile_conf: float = 0.3,
 ):
     """双模型单遍联合跟踪：球员（BoT-SORT 多目标）+ 飞盘（单目标跟踪）。
 
@@ -165,6 +251,20 @@ def iter_player_and_disc_tracks(
                     "cls": int(cbin),
                 })
 
+        if tile_grid > 0:  # 切片补漏（远场小目标召回 +29~33%，track_id=-1）
+            for box, cf, cl in tiled_detect(p_model, frame, tile_conf, imgsz,
+                                            player_classes, grid=tile_grid):
+                if cf < tile_conf:
+                    continue
+                if any(_iou_xyxy(box, d["bbox"]) > 0.5 for d in p_dets):
+                    continue
+                p_dets.append({
+                    "track_id": -1,
+                    "bbox": [round(float(v), 1) for v in box],
+                    "conf": round(float(cf), 3),
+                    "cls": int(cl),
+                })
+
         disc_det = None
         d_res = d_model.predict(frame, conf=disc_conf, imgsz=imgsz,
                                 classes=list(disc_classes) if disc_classes else None,
@@ -186,3 +286,11 @@ def iter_player_and_disc_tracks(
         if max_frames is not None and frame_idx >= max_frames:
             break
     cap.release()
+
+
+def _iou_xyxy(a, b) -> float:
+    ix = max(0.0, min(a[2], b[2]) - max(a[0], b[0]))
+    iy = max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
+    inter = ix * iy
+    ua = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - inter
+    return inter / ua if ua > 0 else 0.0

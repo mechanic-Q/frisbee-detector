@@ -150,6 +150,29 @@ def test_apply_team_from_cls():
     assert frames["1"][1]["team_id"] is None  # cls=3（观众/忽略）不判队
 
 
+# ── 切片补框队伍继承 ─────────────────────────────────────
+
+def test_inherit_team_for_untracked():
+    from frisbee_analyzer.team import inherit_team_for_untracked
+
+    frames = {"0": [
+        {"track_id": 1, "bbox": [100, 500, 200, 800], "team_id": 0},
+        {"track_id": -1, "bbox": [210, 500, 300, 800], "team_id": None},   # 近邻 team0
+        {"track_id": -1, "bbox": [1600, 500, 1700, 800], "team_id": None}, # 无近邻
+    ]}
+    n = inherit_team_for_untracked(frames)
+    assert n == 1
+    assert frames["0"][1]["team_id"] == 0
+    assert frames["0"][2]["team_id"] is None  # 超距离阈值不猜
+
+
+def test_inherit_skips_when_no_labeled():
+    from frisbee_analyzer.team import inherit_team_for_untracked
+
+    frames = {"0": [{"track_id": -1, "bbox": [10, 10, 50, 90], "team_id": None}]}
+    assert inherit_team_for_untracked(frames) == 0
+
+
 # ── 改判落盘 ─────────────────────────────────────────────
 
 def test_write_team_overrides_atomic(tmp_path):

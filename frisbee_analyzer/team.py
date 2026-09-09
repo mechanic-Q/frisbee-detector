@@ -369,6 +369,11 @@ def assign_teams(
         for dets in frames.values():
             for det in dets:
                 det["team_id"] = mapping.get(det["track_id"])
+
+        # 切片补框（track_id=-1）按同帧最近邻继承队伍
+        n_inherit = inherit_team_for_untracked(frames)
+        if n_inherit:
+            log(f"team: {n_inherit} untracked (tiled) dets inherited team by proximity")
         log(f"team: assigned {len(mapping)} tracks into teams {sorted(set(mapping.values()))} "
             f"via {route} colors={colors}")
         return colors
@@ -390,6 +395,40 @@ def apply_team_from_cls(frames: dict, valid_classes: tuple[int, ...] = (0, 1, 2)
             cls = det.get("cls")
             det["team_id"] = cls if cls in valid_classes else None
             n += 1
+    return n
+
+
+def inherit_team_for_untracked(frames: dict, max_dist_ratio: float = 0.12) -> int:
+    """给切片补框（track_id=-1）按同帧最近已分队框继承队伍。
+
+    补框没有轨迹历史，无法参与 track 级聚类；用空间最近邻继承队伍（阈值 = 画面宽度
+    的 max_dist_ratio）。找不到邻居或邻居未分队 → 保持 None（宁可留空也不猜错）。
+    返回继承成功的框数。
+    """
+    import math
+
+    n = 0
+    for dets in frames.values():
+        labeled = [d for d in dets if d.get("track_id", -1) != -1
+                   and d.get("team_id") is not None]
+        if not labeled:
+            continue
+        for det in dets:
+            if det.get("track_id", -1) != -1 or det.get("team_id") is not None:
+                continue
+            cx = (det["bbox"][0] + det["bbox"][2]) / 2
+            cy = (det["bbox"][1] + det["bbox"][3]) / 2
+            best, best_d = None, float("inf")
+            for lab in labeled:
+                lx = (lab["bbox"][0] + lab["bbox"][2]) / 2
+                ly = (lab["bbox"][1] + lab["bbox"][3]) / 2
+                d = math.hypot(cx - lx, cy - ly)
+                if d < best_d:
+                    best_d, best = d, lab["team_id"]
+            # 距离阈值按画面宽度比例（1920*0.12 ≈ 230px，约等于相邻球员间距）
+            if best is not None and best_d <= 1920 * max_dist_ratio:
+                det["team_id"] = best
+                n += 1
     return n
 
 
