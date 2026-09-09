@@ -186,11 +186,17 @@ def jersey_fraction(crop: np.ndarray) -> tuple[float, float]:
 
 
 def label_from_color(track_feats: dict[int, tuple[float, float]], n_teams: int = 2,
-                     min_sep: float = 0.15):
+                     min_sep: float = 0.15, min_signal: float = 0.08,
+                     min_contrast: float = 2.0):
     """track → (mean_red, mean_blue) → KMeans(n_teams)。返回 (mapping, team_colors)。
 
-    队号确定性排序：rf-bf 降序 → team0=主色偏红。簇心分离度 < min_sep 视为颜色不可分，
-    返回 (None, None) 交由上层走 SigLIP 兜底。
+    队号确定性排序：rf-bf 降序 → team0=主色偏红。三级门槛：
+    - 簇心分离度 ≥ min_sep（两簇可分）；
+    - 至少一簇有真实颜色信号（max(rf,bf) ≥ min_signal）；
+    - 有信号通道上两簇对比度 ≥ min_contrast 倍——否则分簇依据是亮度/装备差异而非球衣色
+      （实测 55-56min：红队 rf=0.295 vs 深色队 rf=0.028，对比 10.6 倍 → 可信；
+       反例：两簇 rf 都 ~0.03 → 被拒）。
+    任一门槛不过返回 (None, None) 交由上层走 SigLIP 兜底。
     """
     if len(track_feats) < n_teams:
         return None, None
@@ -204,6 +210,17 @@ def label_from_color(track_feats: dict[int, tuple[float, float]], n_teams: int =
               for a, b in itertools.combinations(range(n_teams), 2))
     if sep < min_sep:
         return None, None
+
+    def _contrast(vals: np.ndarray) -> float | None:
+        hi, lo = float(vals.max()), float(vals.min())
+        return None if hi < min_signal else hi / max(lo, 1e-6)
+
+    contrast_r = _contrast(cents[:, 0])
+    contrast_b = _contrast(cents[:, 1])
+    if (contrast_r is None or contrast_r < min_contrast) and \
+       (contrast_b is None or contrast_b < min_contrast):
+        return None, None  # 两个通道都没有"一簇显著有色"的对比
+
     order = sorted(range(n_teams), key=lambda c: cents[c][0] - cents[c][1], reverse=True)
     remap = {old: new for new, old in enumerate(order)}
     # 颜色由簇心自身的红蓝占比决定（不能按簇索引查表——KMeans 的原始标号是任意的）
@@ -242,10 +259,14 @@ def assign_teams(
     embedder=None,
     sample_interval: int = TEAM_SAMPLE_INTERVAL,
 ) -> dict:
-    """就地填充 frames[...][i]["team_id"]，返回 doc["team_colors"]（如 {"0":"red","1":"blue"}）。
+    """就地填充 frames[...][i]["team_id"]，返回 doc["team_colors"]。
 
-    主路：HSV 颜色特征聚类（E4' 验证过的红蓝规则）；颜色分离度不足回退 SigLIP。
-    任何失败降级为"不分队"（返回 {}），不拖垮 worker。team_id 未分配为 None。
+    v3 融合策略（2026-09-09 跨素材审核后修订）：
+      1. HSV 颜色通道（红蓝可分时最快最准）：分离度足够 → 采信，team_colors 记录实际颜色；
+      2. HSV 不可分（如绿/黑/白衫素材，实测 55-56min 片段两簇同色）→ SigLIP 语义嵌入聚类，
+         team_colors 留空（UI 按中性双色渲染）；
+      3. 两通道都失败 → 不分队（全部 None），GUI 显示未分配而不是错误判定。
+    任何失败降级不拖垮 worker。
     """
     try:
         track_ids, crops, xs = collect_crops(frames, video_path, sample_interval, cancel_check)
@@ -261,8 +282,11 @@ def assign_teams(
                        for t, fs in per_track.items()}
 
         mapping, colors = label_from_color(track_feats)
+        route = "hsv-color"
         if mapping is None:
-            log("team: color separation weak, falling back to SigLIP clustering")
+            route = "siglip-embed"
+            log("team: HSV red/blue separation weak (non red/blue jerseys?) — "
+                "falling back to SigLIP embedding clustering")
             if embedder is None:
                 try:
                     embedder = SiglipEmbedder()
@@ -273,14 +297,14 @@ def assign_teams(
                 mapping = label_from_crops(track_ids, crops, xs, embedder)
             colors = {}
         if not mapping:
-            log("team: too few crops to cluster, frames left unassigned")
+            log("team: both channels failed, frames left unassigned")
             return {}
 
         for dets in frames.values():
             for det in dets:
                 det["team_id"] = mapping.get(det["track_id"])
         log(f"team: assigned {len(mapping)} tracks into teams {sorted(set(mapping.values()))} "
-            f"colors={colors}")
+            f"via {route} colors={colors}")
         return colors
     except WorkerCancelled:
         raise
