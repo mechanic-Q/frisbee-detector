@@ -31,12 +31,38 @@ def probe_video(video_path: str | Path) -> dict:
     return info
 
 
+def make_tracker_config(conf: float, base: str = "botsort_players.yaml") -> str:
+    """生成临时 tracker YAML，把检出阈值与 --conf 对齐。
+
+    根因：BoT-SORT 的 track_high_thresh/new_track_thresh 默认 0.25，会先于推理的 conf
+    丢弃低分检测——只传 --conf 无效（2026-09-09 实测确认）。这里按 conf 覆写后返回路径。
+    """
+    import tempfile
+    from pathlib import Path
+
+    src = Path(__file__).resolve().parents[1] / "configs" / "trackers" / base
+    text = src.read_text(encoding="utf-8")
+    lines = []
+    for line in text.splitlines():
+        key = line.split(":")[0].strip()
+        if key in ("track_high_thresh", "new_track_thresh"):
+            lines.append(f"{key}: {conf}")
+        elif key == "track_low_thresh":
+            lines.append(f"{key}: {min(0.1, conf)}")
+        else:
+            lines.append(line)
+    fd, path = tempfile.mkstemp(suffix=".yaml", prefix="botsort_conf_")
+    with open(fd, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    return path
+
+
 def iter_player_tracks(
     video_path: str | Path,
     weights: str = "yolo26x.pt",
     conf: float = 0.25,
     imgsz: int = 1280,
-    tracker: str = "botsort.yaml",
+    tracker: str | None = None,
     cancel_check=None,
     max_frames: int | None = None,
     classes: tuple[int, ...] = (0,),
@@ -49,6 +75,8 @@ def iter_player_tracks(
     """
     from ultralytics import YOLO  # 惰性导入：模块本身可在无 torch 环境做静态检查
 
+    if tracker is None:
+        tracker = make_tracker_config(conf)
     model = YOLO(str(weights))
     frame_idx = 0
     for res in model.track(
