@@ -3,6 +3,14 @@
 - 每模型在 GT 上算 mAP50/mAP50-95/P/R（扫 conf 阈值 0.05..0.9）
 - 场外 FP 率：用标定单应性投影，统计落在场地外的检测占比
 输出: results/golden_metrics.json + Markdown 表
+
+v2（--gt-v2，2026-09-11）：GT 由 ZCode 会话判读（vlm_verdicts.json）与模型共识双通道合成：
+    yes    + n_models>=2 -> 正框 GT
+    yes    + n_models==1  -> ignore（仅 VLM 单通道主张，未经共识验证）
+    abstain              -> ignore（判读弃权）
+    no     + n_models>=3 -> ignore（通道冲突：强共识但 VLM 否）
+    no     + n_models<=2 -> FP 区（双通道一致非盘，检到即 FP）
+ignore 区的预测不计 TP 也不计 FP。输出 results/golden_metrics_v2.json。
 """
 import json
 import os
@@ -15,10 +23,13 @@ GOLD = ROOT / "data/golden_set_100"
 INFER = ROOT / "results/golden_inference"
 FRAMES = GOLD / "frames"
 OUT = ROOT / "results/golden_metrics.json"
+OUT_V2 = ROOT / "results/golden_metrics_v2.json"
 
 MIN_PX, MAX_PX = 6, 80
+V2_MIN_PX, V2_MAX_PX = 4, 400   # v2 不设 80px 上限——近景手持盘可以很大
 GT_MIN_MODELS = 3          # 金标准判据：>=3 模型共识
 GT_MIN_CONF = 0.30
+V2_MIN_MODELS = 2          # v2 正框共识下限
 
 
 def load_homography():
@@ -70,17 +81,59 @@ def build_gt(cands, H):
     return gt
 
 
-def eval_model(res, gt, H, conf_ths=None):
+def build_gt_v2(cands, verdicts):
+    """v2 GT：判读 × 模型共识 双通道合成（规则见模块 docstring）。
+
+    返回 (gt, ignore)：gt = {帧名: [bbox]}，ignore = {帧名: [bbox]}。
+    """
+    gt, ignore = {}, {}
+    for fname, boxes in cands.items():
+        g, ig = [], []
+        for b in boxes:
+            verdict = verdicts.get(b.get("cid"))
+            if verdict is None:
+                # 兼容：无判读的候选按弃权处理（宁可忽略不可虚构真值）
+                ig.append(b["bbox"])
+                continue
+            x1, y1, x2, y2 = b["bbox"]
+            size = max(x2 - x1, y2 - y1)
+            if not (V2_MIN_PX <= size <= V2_MAX_PX):
+                ig.append(b["bbox"])
+                continue
+            if verdict == "yes":
+                (g if b["n_models"] >= V2_MIN_MODELS else ig).append(b["bbox"])
+            elif verdict == "abstain":
+                ig.append(b["bbox"])
+            else:  # no
+                if b["n_models"] >= GT_MIN_MODELS:
+                    ig.append(b["bbox"])  # 通道冲突：强共识但判否 → ignore
+                # n_models <= 2：双通道一致非盘 → 不进 GT 也不 ignore（检到即 FP）
+        gt[fname] = g
+        ignore[fname] = ig
+    return gt, ignore
+
+
+def _pred_in_ignore(pred_bbox, ignore_boxes):
+    for ig in ignore_boxes:
+        if iou(pred_bbox, ig) >= 0.5:
+            return True
+    return False
+
+
+def eval_model(res, gt, H, conf_ths=None, ignore=None):
     """扫阈值计算 P/R/F1 + mAP@0.5/0.5-0.95 + 场外FP率。"""
     if conf_ths is None:
         conf_ths = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.5, 0.6, 0.7]
+    ignore = ignore or {}
     frames = res["frames"]
     curves = []
     for th in conf_ths:
         tp = fp = fn = 0
         oof_fp = 0
         for fname, gts in gt.items():
+            ig_boxes = ignore.get(fname, [])
             preds = [d for d in frames.get(fname, []) if d["conf"] >= th]
+            preds = [p for p in preds if not _pred_in_ignore(p["bbox"], ig_boxes)]
             matched = [False] * len(gts)
             for p in preds:
                 best_i, best_iou = -1, 0.0
@@ -115,7 +168,9 @@ def eval_model(res, gt, H, conf_ths=None):
             for t in np.arange(0.0, 1.01, 0.02):
                 tp = fp = fn = 0
                 for fname, gts in gt.items():
+                    ig_boxes = ignore.get(fname, [])
                     preds = [d for d in frames.get(fname, []) if d["conf"] >= t]
+                    preds = [p for p in preds if not _pred_in_ignore(p["bbox"], ig_boxes)]
                     matched = [False] * len(gts)
                     for p in preds:
                         bi, bv = -1, 0.0
@@ -159,26 +214,49 @@ def eval_model(res, gt, H, conf_ths=None):
 
 
 def main():
+    import argparse
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--gt-v2", action="store_true",
+                    help="用判读×共识双通道 GT（vlm_verdicts.json），输出 golden_metrics_v2.json")
+    args = ap.parse_args()
+
     cands = json.loads((GOLD / "candidates.json").read_text())
     H = load_homography()
-    gt = build_gt(cands, H)
-    n_gt = sum(len(v) for v in gt.values())
-    n_frames_with_gt = sum(1 for v in gt.values() if v)
-    print(f"GT: {n_gt} boxes in {n_frames_with_gt}/100 frames (>= {GT_MIN_MODELS} models, conf>={GT_MIN_CONF})")
+
+    if args.gt_v2:
+        verdicts = json.loads((GOLD / "vlm_verdicts.json").read_text())["verdicts"]
+        # golden_sheet_build 的候选 id 规则：f"{帧名去后缀}_c{序号:02d}"，直接重建
+        for frame, boxes in cands.items():
+            for i, b in enumerate(boxes):
+                b["cid"] = f"{frame[:-4]}_c{i:02d}"
+        gt, ignore = build_gt_v2(cands, verdicts)
+        n_gt = sum(len(v) for v in gt.values())
+        n_ig = sum(len(v) for v in ignore.values())
+        n_frames_with_gt = sum(1 for v in gt.values() if v)
+        print(f"GT v2: {n_gt} boxes in {n_frames_with_gt}/100 帧; ignore {n_ig} 框"
+              f"（正框=yes&共识>=2, 冲突/弃权=ignore）")
+        out_path, criterion = OUT_V2, "vlm-verdict & >=2 models dual-channel + ignore"
+    else:
+        gt = build_gt(cands, H)
+        ignore = None
+        n_gt = sum(len(v) for v in gt.values())
+        n_frames_with_gt = sum(1 for v in gt.values() if v)
+        print(f"GT: {n_gt} boxes in {n_frames_with_gt}/100 frames (>= {GT_MIN_MODELS} models, conf>={GT_MIN_CONF})")
+        out_path, criterion = OUT, f">= {GT_MIN_MODELS} models & conf >= {GT_MIN_CONF}"
 
     results = {}
     for f in sorted(INFER.glob("*.json")):
         res = json.loads(f.read_text())
-        r = eval_model(res, gt, H)
+        r = eval_model(res, gt, H, ignore=ignore)
         results[res["model"]] = r
         print(f"  {res['model']:20s} mAP50={r['mAP50']:.4f} mAP50-95={r['mAP50-95']:.4f} "
               f"bestF1={r['best_f1']['f1']:.3f}@conf{r['best_f1']['conf']} fps={r['fps']}")
 
-    out = {"gt": {"n_boxes": n_gt, "n_frames": n_frames_with_gt,
-                  "criterion": f">= {GT_MIN_MODELS} models & conf >= {GT_MIN_CONF}"},
+    out = {"gt": {"n_boxes": n_gt, "n_frames": n_frames_with_gt, "criterion": criterion},
            "models": results}
-    OUT.write_text(json.dumps(out, ensure_ascii=False, indent=1))
-    print(f"saved -> {OUT}")
+    out_path.write_text(json.dumps(out, ensure_ascii=False, indent=1))
+    print(f"saved -> {out_path}")
 
 
 if __name__ == "__main__":
