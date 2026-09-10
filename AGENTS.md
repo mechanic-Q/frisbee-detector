@@ -169,6 +169,6 @@ Solution from research:
 ## Git workflow
 
 ```
-improve-precision → dev → main
+→ main（dev 分支已于 2026-09-11 删除，主线直推；大型改动开 feat/* 分支合回后即删）
 ```
 Only commit code/config. Never commit data/, runs/, or .pt files (gitignored).
