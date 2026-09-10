@@ -1,0 +1,10 @@
+# frisbee_merged_v3 — v2 + 112 帧白帽/布堆/记分牌域外负样本（2026-09-11 ZCode 判读确认）
+# 负样本目录为空标签背景图（hardneg3_*.jpg），来源=全片扫描检出帧经双通道确认"全部非盘"
+path: E:/frisbee-detector/data/datasets
+train:
+  - frisbee_merged_v2/images/train
+  - frisbee_merged_v3_negatives/images/train
+val: frisbee_merged_v2/images/val
+test: frisbee_merged_v2/images/test
+nc: 1
+names: [frisbee]

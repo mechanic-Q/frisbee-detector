@@ -1,0 +1,35 @@
+__include__: [
+  '../dataset/frisbee_detection.yml',
+  '../runtime.yml',
+  './include/dataloader.yml',
+  './include/optimizer.yml',
+  './include/dfine_hgnetv2.yml',
+]
+
+output_dir: E:/frisbee-detector/data/bili_final_test/dfine_v3_out
+
+epoches: 72  # 官方收敛档（赛马=各自完整成长配方）
+
+# ---- 以下为 D-FINE-S 的架构参数（照抄官方 dfine_hgnetv2_s_coco.yml，不可省略）----
+DFINE:
+  backbone: HGNetv2
+
+HGNetv2:
+  name: 'B0'
+  return_idx: [1, 2, 3]
+  freeze_at: -1
+  freeze_norm: False
+  use_lab: True
+
+DFINETransformer:
+  num_layers: 3
+  eval_idx: -1
+
+HybridEncoder:
+  in_channels: [256, 512, 1024]
+  hidden_dim: 256
+  depth_mult: 0.34
+  expansion: 0.5
+
+train_dataloader:
+  total_batch_size: 8

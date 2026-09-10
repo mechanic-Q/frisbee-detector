@@ -104,3 +104,4 @@ results/synth_preview/*
 
 # 金标准判读拼图（seed=42 可由 golden_sheet_build.py 确定性重建，只留 manifest）
 /data/golden_set_100/sheets/*.jpg
+/data/hardneg_v3/sheets/*.jpg

@@ -29,7 +29,7 @@ def load_frames():
     return imgs
 
 
-def run_dfine(imgs, res=640):
+def run_dfine(imgs, res=640, ckpt_path=None, model_name="dfine_s"):
     sys.path.insert(0, str(ROOT / "D-FINE"))
     os.chdir(str(ROOT / "D-FINE"))
     import torchvision.transforms.functional as TF
@@ -37,7 +37,7 @@ def run_dfine(imgs, res=640):
 
     cfg = YAMLConfig("configs/dfine/dfine_hgnetv2_s_frisbee.yml")
     model = cfg.model
-    ckpt = torch.load(str(ROOT / "data/bili_final_test/dfine_out/best_stg1.pth"), map_location="cpu")
+    ckpt = torch.load(str(ckpt_path or (ROOT / "data/bili_final_test/dfine_out/best_stg1.pth")), map_location="cpu")
     model.load_state_dict(ckpt.get("model", ckpt))
     model.eval().cuda()
 
@@ -67,7 +67,7 @@ def run_dfine(imgs, res=640):
         out[fname] = dets
         n += 1
     fps = round((n - 3) / max(time.time() - t0, 1e-6), 1) if n > 3 else None
-    return {"model": "dfine_s", "type": "dfine", "resolution": res, "fps": fps, "frames": out}
+    return {"model": model_name, "type": "dfine", "resolution": res, "fps": fps, "frames": out}
 
 
 def run_rfdetr(imgs):
@@ -93,26 +93,40 @@ def run_rfdetr(imgs):
 
 
 def main():
+    import argparse
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dfine-ckpt", type=str, default=None,
+                    help="D-FINE 权重路径（默认 dfine_out/best_stg1.pth；赛马用 dfine_v3_out）")
+    ap.add_argument("--dfine-name", type=str, default="dfine_s",
+                    help="输出 json 的模型名（如 dfine_s_v3）")
+    ap.add_argument("--skip-rfdetr", action="store_true")
+    args = ap.parse_args()
+
     imgs = load_frames()
     print(f"frames: {len(imgs)}", flush=True)
 
-    p = OUT / "dfine_s.json"
+    p = OUT / f"{args.dfine_name}.json"
     if not p.exists():
-        print("run dfine_s ...", flush=True)
-        r = run_dfine(imgs)
+        print(f"run {args.dfine_name} ...", flush=True)
+        r = run_dfine(imgs, ckpt_path=args.dfine_ckpt, model_name=args.dfine_name)
         p.write_text(json.dumps(r))
         print(f"  -> fps={r['fps']} dets={sum(len(v) for v in r['frames'].values())}", flush=True)
     else:
-        print("dfine_s exists, skip")
+        print(f"{args.dfine_name} exists, skip")
 
     p2 = OUT / "rfdetr_small.json"
-    if not p2.exists():
+    if not args.skip_rfdetr and not p2.exists():
         print("run rfdetr_small ...", flush=True)
-        r2 = run_rfdetr(imgs)
+        try:
+            r2 = run_rfdetr(imgs)
+        except ImportError as e:
+            print(f"  rfdetr 不可用，跳过: {e}", flush=True)
+            return
         p2.write_text(json.dumps(r2))
         print(f"  -> fps={r2['fps']} dets={sum(len(v) for v in r2['frames'].values())}", flush=True)
-    else:
-        print("rfdetr_small exists, skip")
+    elif args.skip_rfdetr:
+        print("rfdetr skipped by flag")
 
 
 if __name__ == "__main__":
