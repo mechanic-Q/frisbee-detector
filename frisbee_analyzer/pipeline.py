@@ -106,15 +106,18 @@ def run(args, stream=None) -> int:
             matrix, polygon = calib["matrix"], FIELD_POLYGON_M
         except Exception as e:  # noqa: BLE001 —— 标定读取失败则退回启发式
             protocol.emit(protocol.log(f"field filter: calibration ignored ({e})"), stream)
-    total_before = sum(len(d) for d in frames.values())
-    for key, dets in frames.items():
-        frames[key] = filter_dets(
-            dets, fh, matrix=matrix, polygon=polygon,
-            min_height=fh * 0.083, min_y_frac=args.min_y_frac,
-        )
-    total_after = sum(len(d) for d in frames.values())
-    route = "polygon(calibrated)" if matrix is not None else f"heuristic(min_y_frac={args.min_y_frac})"
-    protocol.emit(protocol.log(f"field filter({route}): {total_before} -> {total_after} dets"), stream)
+    if getattr(args, "no_field_filter", False):
+        protocol.emit(protocol.log("field filter: DISABLED (--no-field-filter, raw dets saved)"), stream)
+    else:
+        total_before = sum(len(d) for d in frames.values())
+        for key, dets in frames.items():
+            frames[key] = filter_dets(
+                dets, fh, matrix=matrix, polygon=polygon,
+                min_height=fh * 0.083, min_y_frac=args.min_y_frac,
+            )
+        total_after = sum(len(d) for d in frames.values())
+        route = "polygon(calibrated)" if matrix is not None else f"heuristic(min_y_frac={args.min_y_frac})"
+        protocol.emit(protocol.log(f"field filter({route}): {total_before} -> {total_after} dets"), stream)
 
     out_dir = Path(win_to_wsl(args.output_dir)) if args.output_dir else Path("runs/gui_analysis") / Path(video).stem
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -197,6 +200,8 @@ def main(argv=None) -> int:
     parser.add_argument("--disc-conf", type=float, default=0.35, help="飞盘检测置信度阈值")
     parser.add_argument("--calibration", default=None,
                         help="场地标定 json：场内过滤升级为多边形过滤；事件统计需要")
+    parser.add_argument("--no-field-filter", action="store_true",
+                        help="保存未过滤原始检出（自动标定等用途）")
     parser.add_argument("--team-only", metavar="TRACKS_JSON", default=None,
                         help="跳过跟踪，只对已有 tracks.json 重算分队")
     args = parser.parse_args(argv)
