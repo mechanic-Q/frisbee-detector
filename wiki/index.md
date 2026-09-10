@@ -2,6 +2,7 @@
 
 ## comparisons
 
+- [[golden-set-100-domain-validation]] — 金标准 100 帧域外验证：D-FINE 领先扩大，RF-DETR 掉队第 8，YOLO26s 垫底
 - [[detector-architecture-benchmark-v2]] — 检测器架构基准 v2：默认状态×统一数据的公平对比（D-FINE-S 夺魁 0.866）
 
 ## concepts

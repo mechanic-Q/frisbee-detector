@@ -1,0 +1,1161 @@
+{
+ "gt": {
+  "n_boxes": 159,
+  "n_frames": 86,
+  "criterion": ">= 3 models & conf >= 0.3"
+ },
+ "models": {
+  "ctrl_v8s_p2": {
+   "curves": [
+    {
+     "conf": 0.05,
+     "tp": 120,
+     "fp": 391,
+     "fn": 39,
+     "precision": 0.2348,
+     "recall": 0.7547,
+     "f1": 0.3582,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.1,
+     "tp": 97,
+     "fp": 157,
+     "fn": 62,
+     "precision": 0.3819,
+     "recall": 0.6101,
+     "f1": 0.4697,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.15,
+     "tp": 76,
+     "fp": 66,
+     "fn": 83,
+     "precision": 0.5352,
+     "recall": 0.478,
+     "f1": 0.505,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.2,
+     "tp": 57,
+     "fp": 39,
+     "fn": 102,
+     "precision": 0.5938,
+     "recall": 0.3585,
+     "f1": 0.4471,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.25,
+     "tp": 42,
+     "fp": 18,
+     "fn": 117,
+     "precision": 0.7,
+     "recall": 0.2642,
+     "f1": 0.3836,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.3,
+     "tp": 35,
+     "fp": 8,
+     "fn": 124,
+     "precision": 0.814,
+     "recall": 0.2201,
+     "f1": 0.3465,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.35,
+     "tp": 26,
+     "fp": 3,
+     "fn": 133,
+     "precision": 0.8966,
+     "recall": 0.1635,
+     "f1": 0.2766,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.4,
+     "tp": 20,
+     "fp": 2,
+     "fn": 139,
+     "precision": 0.9091,
+     "recall": 0.1258,
+     "f1": 0.221,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.5,
+     "tp": 15,
+     "fp": 0,
+     "fn": 144,
+     "precision": 1.0,
+     "recall": 0.0943,
+     "f1": 0.1724,
+     "out_of_field_fp_rate": null
+    },
+    {
+     "conf": 0.6,
+     "tp": 8,
+     "fp": 0,
+     "fn": 151,
+     "precision": 1.0,
+     "recall": 0.0503,
+     "f1": 0.0958,
+     "out_of_field_fp_rate": null
+    },
+    {
+     "conf": 0.7,
+     "tp": 4,
+     "fp": 0,
+     "fn": 155,
+     "precision": 1.0,
+     "recall": 0.0252,
+     "f1": 0.0491,
+     "out_of_field_fp_rate": null
+    }
+   ],
+   "mAP50": 0.4969,
+   "mAP50-95": 0.3054,
+   "fps": 94.0,
+   "resolution": 1280,
+   "best_f1": {
+    "conf": 0.15,
+    "tp": 76,
+    "fp": 66,
+    "fn": 83,
+    "precision": 0.5352,
+    "recall": 0.478,
+    "f1": 0.505,
+    "out_of_field_fp_rate": 0.0
+   }
+  },
+  "dfine_s": {
+   "curves": [
+    {
+     "conf": 0.05,
+     "tp": 152,
+     "fp": 4173,
+     "fn": 7,
+     "precision": 0.0351,
+     "recall": 0.956,
+     "f1": 0.0678,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.1,
+     "tp": 144,
+     "fp": 964,
+     "fn": 15,
+     "precision": 0.13,
+     "recall": 0.9057,
+     "f1": 0.2273,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.15,
+     "tp": 125,
+     "fp": 388,
+     "fn": 34,
+     "precision": 0.2437,
+     "recall": 0.7862,
+     "f1": 0.372,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.2,
+     "tp": 118,
+     "fp": 188,
+     "fn": 41,
+     "precision": 0.3856,
+     "recall": 0.7421,
+     "f1": 0.5075,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.25,
+     "tp": 114,
+     "fp": 104,
+     "fn": 45,
+     "precision": 0.5229,
+     "recall": 0.717,
+     "f1": 0.6048,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.3,
+     "tp": 111,
+     "fp": 60,
+     "fn": 48,
+     "precision": 0.6491,
+     "recall": 0.6981,
+     "f1": 0.6727,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.35,
+     "tp": 98,
+     "fp": 37,
+     "fn": 61,
+     "precision": 0.7259,
+     "recall": 0.6164,
+     "f1": 0.6667,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.4,
+     "tp": 89,
+     "fp": 26,
+     "fn": 70,
+     "precision": 0.7739,
+     "recall": 0.5597,
+     "f1": 0.6496,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.5,
+     "tp": 68,
+     "fp": 13,
+     "fn": 91,
+     "precision": 0.8395,
+     "recall": 0.4277,
+     "f1": 0.5667,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.6,
+     "tp": 48,
+     "fp": 5,
+     "fn": 111,
+     "precision": 0.9057,
+     "recall": 0.3019,
+     "f1": 0.4528,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.7,
+     "tp": 36,
+     "fp": 2,
+     "fn": 123,
+     "precision": 0.9474,
+     "recall": 0.2264,
+     "f1": 0.3655,
+     "out_of_field_fp_rate": 0.0
+    }
+   ],
+   "mAP50": 0.6593,
+   "mAP50-95": 0.5078,
+   "fps": 30.1,
+   "resolution": 640,
+   "best_f1": {
+    "conf": 0.3,
+    "tp": 111,
+    "fp": 60,
+    "fn": 48,
+    "precision": 0.6491,
+    "recall": 0.6981,
+    "f1": 0.6727,
+    "out_of_field_fp_rate": 0.0
+   }
+  },
+  "prod_v8s_p2": {
+   "curves": [
+    {
+     "conf": 0.05,
+     "tp": 124,
+     "fp": 214,
+     "fn": 35,
+     "precision": 0.3669,
+     "recall": 0.7799,
+     "f1": 0.499,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.1,
+     "tp": 109,
+     "fp": 106,
+     "fn": 50,
+     "precision": 0.507,
+     "recall": 0.6855,
+     "f1": 0.5829,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.15,
+     "tp": 93,
+     "fp": 59,
+     "fn": 66,
+     "precision": 0.6118,
+     "recall": 0.5849,
+     "f1": 0.5981,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.2,
+     "tp": 82,
+     "fp": 40,
+     "fn": 77,
+     "precision": 0.6721,
+     "recall": 0.5157,
+     "f1": 0.5836,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.25,
+     "tp": 73,
+     "fp": 18,
+     "fn": 86,
+     "precision": 0.8022,
+     "recall": 0.4591,
+     "f1": 0.584,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.3,
+     "tp": 63,
+     "fp": 6,
+     "fn": 96,
+     "precision": 0.913,
+     "recall": 0.3962,
+     "f1": 0.5526,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.35,
+     "tp": 51,
+     "fp": 4,
+     "fn": 108,
+     "precision": 0.9273,
+     "recall": 0.3208,
+     "f1": 0.4766,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.4,
+     "tp": 46,
+     "fp": 3,
+     "fn": 113,
+     "precision": 0.9388,
+     "recall": 0.2893,
+     "f1": 0.4423,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.5,
+     "tp": 30,
+     "fp": 0,
+     "fn": 129,
+     "precision": 1.0,
+     "recall": 0.1887,
+     "f1": 0.3175,
+     "out_of_field_fp_rate": null
+    },
+    {
+     "conf": 0.6,
+     "tp": 20,
+     "fp": 0,
+     "fn": 139,
+     "precision": 1.0,
+     "recall": 0.1258,
+     "f1": 0.2235,
+     "out_of_field_fp_rate": null
+    },
+    {
+     "conf": 0.7,
+     "tp": 11,
+     "fp": 0,
+     "fn": 148,
+     "precision": 1.0,
+     "recall": 0.0692,
+     "f1": 0.1294,
+     "out_of_field_fp_rate": null
+    }
+   ],
+   "mAP50": 0.6381,
+   "mAP50-95": 0.3986,
+   "fps": 93.9,
+   "resolution": 1280,
+   "best_f1": {
+    "conf": 0.15,
+    "tp": 93,
+    "fp": 59,
+    "fn": 66,
+    "precision": 0.6118,
+    "recall": 0.5849,
+    "f1": 0.5981,
+    "out_of_field_fp_rate": 0.0
+   }
+  },
+  "prod_v8s_p2_640": {
+   "curves": [
+    {
+     "conf": 0.05,
+     "tp": 128,
+     "fp": 347,
+     "fn": 31,
+     "precision": 0.2695,
+     "recall": 0.805,
+     "f1": 0.4038,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.1,
+     "tp": 113,
+     "fp": 144,
+     "fn": 46,
+     "precision": 0.4397,
+     "recall": 0.7107,
+     "f1": 0.5433,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.15,
+     "tp": 102,
+     "fp": 68,
+     "fn": 57,
+     "precision": 0.6,
+     "recall": 0.6415,
+     "f1": 0.6201,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.2,
+     "tp": 79,
+     "fp": 41,
+     "fn": 80,
+     "precision": 0.6583,
+     "recall": 0.4969,
+     "f1": 0.5663,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.25,
+     "tp": 69,
+     "fp": 28,
+     "fn": 90,
+     "precision": 0.7113,
+     "recall": 0.434,
+     "f1": 0.5391,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.3,
+     "tp": 63,
+     "fp": 12,
+     "fn": 96,
+     "precision": 0.84,
+     "recall": 0.3962,
+     "f1": 0.5385,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.35,
+     "tp": 52,
+     "fp": 5,
+     "fn": 107,
+     "precision": 0.9123,
+     "recall": 0.327,
+     "f1": 0.4815,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.4,
+     "tp": 48,
+     "fp": 2,
+     "fn": 111,
+     "precision": 0.96,
+     "recall": 0.3019,
+     "f1": 0.4593,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.5,
+     "tp": 38,
+     "fp": 1,
+     "fn": 121,
+     "precision": 0.9744,
+     "recall": 0.239,
+     "f1": 0.3838,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.6,
+     "tp": 20,
+     "fp": 0,
+     "fn": 139,
+     "precision": 1.0,
+     "recall": 0.1258,
+     "f1": 0.2235,
+     "out_of_field_fp_rate": null
+    },
+    {
+     "conf": 0.7,
+     "tp": 8,
+     "fp": 0,
+     "fn": 151,
+     "precision": 1.0,
+     "recall": 0.0503,
+     "f1": 0.0958,
+     "out_of_field_fp_rate": null
+    }
+   ],
+   "mAP50": 0.608,
+   "mAP50-95": 0.3808,
+   "fps": 159.1,
+   "resolution": 640,
+   "best_f1": {
+    "conf": 0.15,
+    "tp": 102,
+    "fp": 68,
+    "fn": 57,
+    "precision": 0.6,
+    "recall": 0.6415,
+    "f1": 0.6201,
+    "out_of_field_fp_rate": 0.0
+   }
+  },
+  "rfdetr_small": {
+   "curves": [
+    {
+     "conf": 0.05,
+     "tp": 92,
+     "fp": 683,
+     "fn": 67,
+     "precision": 0.1187,
+     "recall": 0.5786,
+     "f1": 0.197,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.1,
+     "tp": 72,
+     "fp": 226,
+     "fn": 87,
+     "precision": 0.2416,
+     "recall": 0.4528,
+     "f1": 0.3151,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.15,
+     "tp": 66,
+     "fp": 102,
+     "fn": 93,
+     "precision": 0.3929,
+     "recall": 0.4151,
+     "f1": 0.4037,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.2,
+     "tp": 63,
+     "fp": 58,
+     "fn": 96,
+     "precision": 0.5207,
+     "recall": 0.3962,
+     "f1": 0.45,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.25,
+     "tp": 59,
+     "fp": 40,
+     "fn": 100,
+     "precision": 0.596,
+     "recall": 0.3711,
+     "f1": 0.4574,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.3,
+     "tp": 59,
+     "fp": 28,
+     "fn": 100,
+     "precision": 0.6782,
+     "recall": 0.3711,
+     "f1": 0.4797,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.35,
+     "tp": 54,
+     "fp": 18,
+     "fn": 105,
+     "precision": 0.75,
+     "recall": 0.3396,
+     "f1": 0.4675,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.4,
+     "tp": 49,
+     "fp": 15,
+     "fn": 110,
+     "precision": 0.7656,
+     "recall": 0.3082,
+     "f1": 0.4395,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.5,
+     "tp": 42,
+     "fp": 6,
+     "fn": 117,
+     "precision": 0.875,
+     "recall": 0.2642,
+     "f1": 0.4058,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.6,
+     "tp": 31,
+     "fp": 2,
+     "fn": 128,
+     "precision": 0.9394,
+     "recall": 0.195,
+     "f1": 0.3229,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.7,
+     "tp": 24,
+     "fp": 0,
+     "fn": 135,
+     "precision": 1.0,
+     "recall": 0.1509,
+     "f1": 0.2623,
+     "out_of_field_fp_rate": null
+    }
+   ],
+   "mAP50": 0.397,
+   "mAP50-95": 0.265,
+   "fps": 73.6,
+   "resolution": 672,
+   "best_f1": {
+    "conf": 0.3,
+    "tp": 59,
+    "fp": 28,
+    "fn": 100,
+    "precision": 0.6782,
+    "recall": 0.3711,
+    "f1": 0.4797,
+    "out_of_field_fp_rate": 0.0
+   }
+  },
+  "shadow_v1": {
+   "curves": [
+    {
+     "conf": 0.05,
+     "tp": 83,
+     "fp": 49,
+     "fn": 76,
+     "precision": 0.6288,
+     "recall": 0.522,
+     "f1": 0.5704,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.1,
+     "tp": 68,
+     "fp": 18,
+     "fn": 91,
+     "precision": 0.7907,
+     "recall": 0.4277,
+     "f1": 0.5551,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.15,
+     "tp": 62,
+     "fp": 9,
+     "fn": 97,
+     "precision": 0.8732,
+     "recall": 0.3899,
+     "f1": 0.5391,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.2,
+     "tp": 57,
+     "fp": 5,
+     "fn": 102,
+     "precision": 0.9194,
+     "recall": 0.3585,
+     "f1": 0.5158,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.25,
+     "tp": 47,
+     "fp": 2,
+     "fn": 112,
+     "precision": 0.9592,
+     "recall": 0.2956,
+     "f1": 0.4519,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.3,
+     "tp": 42,
+     "fp": 1,
+     "fn": 117,
+     "precision": 0.9767,
+     "recall": 0.2642,
+     "f1": 0.4158,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.35,
+     "tp": 40,
+     "fp": 1,
+     "fn": 119,
+     "precision": 0.9756,
+     "recall": 0.2516,
+     "f1": 0.4,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.4,
+     "tp": 33,
+     "fp": 1,
+     "fn": 126,
+     "precision": 0.9706,
+     "recall": 0.2075,
+     "f1": 0.342,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.5,
+     "tp": 28,
+     "fp": 0,
+     "fn": 131,
+     "precision": 1.0,
+     "recall": 0.1761,
+     "f1": 0.2995,
+     "out_of_field_fp_rate": null
+    },
+    {
+     "conf": 0.6,
+     "tp": 22,
+     "fp": 0,
+     "fn": 137,
+     "precision": 1.0,
+     "recall": 0.1384,
+     "f1": 0.2431,
+     "out_of_field_fp_rate": null
+    },
+    {
+     "conf": 0.7,
+     "tp": 15,
+     "fp": 0,
+     "fn": 144,
+     "precision": 1.0,
+     "recall": 0.0943,
+     "f1": 0.1724,
+     "out_of_field_fp_rate": null
+    }
+   ],
+   "mAP50": 0.5685,
+   "mAP50-95": 0.3675,
+   "fps": 91.6,
+   "resolution": 1280,
+   "best_f1": {
+    "conf": 0.05,
+    "tp": 83,
+    "fp": 49,
+    "fn": 76,
+    "precision": 0.6288,
+    "recall": 0.522,
+    "f1": 0.5704,
+    "out_of_field_fp_rate": 0.0
+   }
+  },
+  "yolo_11s": {
+   "curves": [
+    {
+     "conf": 0.05,
+     "tp": 119,
+     "fp": 491,
+     "fn": 40,
+     "precision": 0.1951,
+     "recall": 0.7484,
+     "f1": 0.3095,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.1,
+     "tp": 90,
+     "fp": 178,
+     "fn": 69,
+     "precision": 0.3358,
+     "recall": 0.566,
+     "f1": 0.4215,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.15,
+     "tp": 78,
+     "fp": 92,
+     "fn": 81,
+     "precision": 0.4588,
+     "recall": 0.4906,
+     "f1": 0.4742,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.2,
+     "tp": 55,
+     "fp": 47,
+     "fn": 104,
+     "precision": 0.5392,
+     "recall": 0.3459,
+     "f1": 0.4215,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.25,
+     "tp": 43,
+     "fp": 26,
+     "fn": 116,
+     "precision": 0.6232,
+     "recall": 0.2704,
+     "f1": 0.3772,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.3,
+     "tp": 34,
+     "fp": 10,
+     "fn": 125,
+     "precision": 0.7727,
+     "recall": 0.2138,
+     "f1": 0.335,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.35,
+     "tp": 24,
+     "fp": 4,
+     "fn": 135,
+     "precision": 0.8571,
+     "recall": 0.1509,
+     "f1": 0.2567,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.4,
+     "tp": 18,
+     "fp": 3,
+     "fn": 141,
+     "precision": 0.8571,
+     "recall": 0.1132,
+     "f1": 0.2,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.5,
+     "tp": 7,
+     "fp": 1,
+     "fn": 152,
+     "precision": 0.875,
+     "recall": 0.044,
+     "f1": 0.0838,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.6,
+     "tp": 4,
+     "fp": 1,
+     "fn": 155,
+     "precision": 0.8,
+     "recall": 0.0252,
+     "f1": 0.0488,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.7,
+     "tp": 2,
+     "fp": 0,
+     "fn": 157,
+     "precision": 1.0,
+     "recall": 0.0126,
+     "f1": 0.0248,
+     "out_of_field_fp_rate": null
+    }
+   ],
+   "mAP50": 0.4343,
+   "mAP50-95": 0.248,
+   "fps": 83.6,
+   "resolution": 1280,
+   "best_f1": {
+    "conf": 0.15,
+    "tp": 78,
+    "fp": 92,
+    "fn": 81,
+    "precision": 0.4588,
+    "recall": 0.4906,
+    "f1": 0.4742,
+    "out_of_field_fp_rate": 0.0
+   }
+  },
+  "yolo_26s": {
+   "curves": [
+    {
+     "conf": 0.05,
+     "tp": 82,
+     "fp": 317,
+     "fn": 77,
+     "precision": 0.2055,
+     "recall": 0.5157,
+     "f1": 0.2939,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.1,
+     "tp": 51,
+     "fp": 103,
+     "fn": 108,
+     "precision": 0.3312,
+     "recall": 0.3208,
+     "f1": 0.3259,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.15,
+     "tp": 38,
+     "fp": 42,
+     "fn": 121,
+     "precision": 0.475,
+     "recall": 0.239,
+     "f1": 0.318,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.2,
+     "tp": 29,
+     "fp": 21,
+     "fn": 130,
+     "precision": 0.58,
+     "recall": 0.1824,
+     "f1": 0.2775,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.25,
+     "tp": 20,
+     "fp": 12,
+     "fn": 139,
+     "precision": 0.625,
+     "recall": 0.1258,
+     "f1": 0.2094,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.3,
+     "tp": 20,
+     "fp": 3,
+     "fn": 139,
+     "precision": 0.8696,
+     "recall": 0.1258,
+     "f1": 0.2198,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.35,
+     "tp": 16,
+     "fp": 2,
+     "fn": 143,
+     "precision": 0.8889,
+     "recall": 0.1006,
+     "f1": 0.1808,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.4,
+     "tp": 11,
+     "fp": 1,
+     "fn": 148,
+     "precision": 0.9167,
+     "recall": 0.0692,
+     "f1": 0.1287,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.5,
+     "tp": 6,
+     "fp": 0,
+     "fn": 153,
+     "precision": 1.0,
+     "recall": 0.0377,
+     "f1": 0.0727,
+     "out_of_field_fp_rate": null
+    },
+    {
+     "conf": 0.6,
+     "tp": 5,
+     "fp": 0,
+     "fn": 154,
+     "precision": 1.0,
+     "recall": 0.0314,
+     "f1": 0.061,
+     "out_of_field_fp_rate": null
+    },
+    {
+     "conf": 0.7,
+     "tp": 1,
+     "fp": 0,
+     "fn": 158,
+     "precision": 1.0,
+     "recall": 0.0063,
+     "f1": 0.0125,
+     "out_of_field_fp_rate": null
+    }
+   ],
+   "mAP50": 0.3019,
+   "mAP50-95": 0.1749,
+   "fps": 94.2,
+   "resolution": 1280,
+   "best_f1": {
+    "conf": 0.1,
+    "tp": 51,
+    "fp": 103,
+    "fn": 108,
+    "precision": 0.3312,
+    "recall": 0.3208,
+    "f1": 0.3259,
+    "out_of_field_fp_rate": 0.0
+   }
+  },
+  "yolo_v8s": {
+   "curves": [
+    {
+     "conf": 0.05,
+     "tp": 131,
+     "fp": 579,
+     "fn": 28,
+     "precision": 0.1845,
+     "recall": 0.8239,
+     "f1": 0.3015,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.1,
+     "tp": 119,
+     "fp": 234,
+     "fn": 40,
+     "precision": 0.3371,
+     "recall": 0.7484,
+     "f1": 0.4648,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.15,
+     "tp": 98,
+     "fp": 116,
+     "fn": 61,
+     "precision": 0.4579,
+     "recall": 0.6164,
+     "f1": 0.5255,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.2,
+     "tp": 85,
+     "fp": 45,
+     "fn": 74,
+     "precision": 0.6538,
+     "recall": 0.5346,
+     "f1": 0.5882,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.25,
+     "tp": 68,
+     "fp": 21,
+     "fn": 91,
+     "precision": 0.764,
+     "recall": 0.4277,
+     "f1": 0.5484,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.3,
+     "tp": 49,
+     "fp": 16,
+     "fn": 110,
+     "precision": 0.7538,
+     "recall": 0.3082,
+     "f1": 0.4375,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.35,
+     "tp": 33,
+     "fp": 10,
+     "fn": 126,
+     "precision": 0.7674,
+     "recall": 0.2075,
+     "f1": 0.3267,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.4,
+     "tp": 17,
+     "fp": 6,
+     "fn": 142,
+     "precision": 0.7391,
+     "recall": 0.1069,
+     "f1": 0.1868,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.5,
+     "tp": 5,
+     "fp": 2,
+     "fn": 154,
+     "precision": 0.7143,
+     "recall": 0.0314,
+     "f1": 0.0602,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.6,
+     "tp": 2,
+     "fp": 1,
+     "fn": 157,
+     "precision": 0.6667,
+     "recall": 0.0126,
+     "f1": 0.0247,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.7,
+     "tp": 0,
+     "fp": 0,
+     "fn": 159,
+     "precision": 0.0,
+     "recall": 0.0,
+     "f1": 0.0,
+     "out_of_field_fp_rate": null
+    }
+   ],
+   "mAP50": 0.5357,
+   "mAP50-95": 0.3274,
+   "fps": 91.6,
+   "resolution": 1280,
+   "best_f1": {
+    "conf": 0.2,
+    "tp": 85,
+    "fp": 45,
+    "fn": 74,
+    "precision": 0.6538,
+    "recall": 0.5346,
+    "f1": 0.5882,
+    "out_of_field_fp_rate": 0.0
+   }
+  }
+ }
+}
