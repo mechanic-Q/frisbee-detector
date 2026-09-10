@@ -1,0 +1,27 @@
+{
+  "tracks_json": "E:\\frisbee-detector\\runs\\gui_analysis\\v4ref_grid3_300\\tracks.json",
+  "video": "/mnt/e/frisbee-detector/data/bili_final_test/accept_10min.mp4",
+  "sample_interval": 60,
+  "samples": 5,
+  "crops_decisive": 41,
+  "crops_ambiguous": 11,
+  "crops_too_small": 0,
+  "team_crop_distribution": {
+    "0": {
+      "blue": 5,
+      "red": 21
+    },
+    "1": {
+      "blue": 14,
+      "red": 1
+    }
+  },
+  "team_dominant_color": {
+    "0": "red",
+    "1": "blue"
+  },
+  "cross_team_distinct": true,
+  "crop_consistency": 0.8537,
+  "track_consistency": 0.8636,
+  "gate": ">=0.90"
+}

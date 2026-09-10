@@ -1,7 +1,7 @@
 """worker 启动参数构造（纯标准库，便于无 PySide6 环境单测）。
 
 GUI 发起的每一步 GPU 分析都自动套 tools/gpu_run.sh 排队锁（/tmp/frisbee_gpu.lock，
-跨 worktree 共享），避免与主会话的基准/训练队列撞卡——见 .worktrees/*/GPU_COORDINATION.md。
+跨会话共享），避免与基准/训练队列撞卡。
 """
 
 from __future__ import annotations
