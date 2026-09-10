@@ -1,5 +1,5 @@
 """YOLO(YOLO格式) → COCO 格式转换（供 RF-DETR 训练使用）。
-在 WSL 运行: python3 tools/yolo_to_coco.py
+运行: python tools/yolo_to_coco.py
 输出: data/datasets/frisbee_coco/{train,valid,test}/[images + _annotations.coco.json]
 （图片用硬链接失败则复制）
 """
@@ -8,7 +8,7 @@ import os
 import shutil
 from pathlib import Path
 
-ROOT = Path("/mnt/e/frisbee-detector")
+ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "data/datasets/frisbee_merged_v2"
 DST = ROOT / "data/datasets/frisbee_coco"
 SPLIT_MAP = {"train": "train", "val": "valid", "test": "test"}

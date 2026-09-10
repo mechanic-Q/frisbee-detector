@@ -40,12 +40,12 @@ def evaluate_model(model_path, video_path, conf_threshold=0.25, save_dir="runs/e
 
 if __name__ == "__main__":
     models = [
-        "/mnt/e/firsbee/03_datasets/UltimateML/models/best.pt",
-        "/mnt/e/firsbee/03_datasets/ultimate_analytics/web-app/src/data/model/best.pt",
+        "E:/firsbee/03_datasets/UltimateML/models/best.pt",
+        "E:/firsbee/03_datasets/ultimate_analytics/web-app/src/data/model/best.pt",
     ]
     candidates = [
-        "/mnt/e/firsbee/03_datasets/frisbee-tracking/clip-5.mp4",
-        "/mnt/e/firsbee/03_datasets/frisbee-vision-project/Footage/backhand_2.mp4",
+        "E:/firsbee/03_datasets/frisbee-tracking/clip-5.mp4",
+        "E:/firsbee/03_datasets/frisbee-vision-project/Footage/backhand_2.mp4",
     ]
     video = sys.argv[1] if len(sys.argv) > 1 else None
     if video:

@@ -1,5 +1,5 @@
 """E6 路C：FunASR 音频转写 — paraformer-zh 句级时间戳，为 LLM 事件抽取提供 ASR 对照文本。
-在 WSL 运行（GPU 排队）: bash tools/gpu_run.sh funasr-asr python3 tools/asr_transcribe.py
+Windows 原生运行（GPU 排队）: python tools/gpu_run.py funasr-asr python tools/asr_transcribe.py
 输出: results/asr_transcript.json = {"audio": ..., "duration_sec": ..., "sentences": [{t_start,t_end,text}]}
 依赖: ffmpeg 预先提取 results/audio.mp3（16kHz 单声道）；模型首次运行自动从 modelscope 下载（~1GB）。
 """

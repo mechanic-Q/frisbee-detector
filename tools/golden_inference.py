@@ -1,5 +1,5 @@
 """Step 4: 全模型在金标准 100 帧上推理（低阈值保存全部检测，离线扫阈值）。
-运行(WSL): python3 tools/golden_inference.py [--models m1,m2]
+运行: python tools/golden_inference.py [--models m1,m2]
 输出: results/golden_inference/<model_name>.json
 格式: {"model": name, "resolution": R, "frames": {"f000123.jpg": [{"bbox":[x1,y1,x2,y2],"conf":c}, ...]}, "fps": ...}
 """

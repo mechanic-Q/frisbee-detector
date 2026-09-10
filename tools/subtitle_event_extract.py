@@ -1,5 +1,5 @@
 """E6 路A：AI字幕 → LLM 事件抽取（得分手/攻守转换候选）。
-在 WSL 运行: python3 tools/subtitle_event_extract.py
+运行: python tools/subtitle_event_extract.py
 输出: data/bili_final_test/out/sub_events.json + sub_events_readable.txt
 """
 import json
@@ -10,7 +10,7 @@ from pathlib import Path
 
 from openai import OpenAI
 
-ROOT = Path("/mnt/e/frisbee-detector")
+ROOT = Path(__file__).resolve().parents[1]
 SRT = ROOT / "data/bili_final_test/subs/BV1hTtpeyEzb.ai-zh.srt"
 OUT = Path(__file__).resolve().parents[1] / "results"
 OUT.mkdir(parents=True, exist_ok=True)

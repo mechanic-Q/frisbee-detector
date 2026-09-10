@@ -1,4 +1,4 @@
-path: /mnt/e/frisbee-detector/data/datasets/players_e4_clean
+path: E:/frisbee-detector/data/datasets/players_e4_clean
 train: images/train
 val: images/val
 names:

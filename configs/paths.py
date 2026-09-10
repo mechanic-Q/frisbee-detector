@@ -5,8 +5,9 @@ Usage:
     from configs.paths import RESEARCH_ROOT, PROJECT_ROOT, DATASETS, VIDEOS, MODELS
 
 Environment variables used:
-    RESEARCH_ROOT — root of external research data (default: /mnt/e/firsbee)
-    PROJECT_ROOT  — root of this project (default: /mnt/e/frisbee-detector)
+    RESEARCH_ROOT — root of external research data (default: E:/firsbee)
+    PROJECT_ROOT  — root of this project (default: repo checkout root, derived
+                    from this file's location — moving the repo just works)
 """
 
 import os
@@ -14,8 +15,9 @@ import re
 from pathlib import Path
 
 _THIS_DIR = Path(__file__).parent
-_PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "/mnt/e/frisbee-detector"))
-_RESEARCH_ROOT = Path(os.environ.get("RESEARCH_ROOT", "/mnt/e/firsbee"))
+_DEFAULT_PROJECT_ROOT = _THIS_DIR.parent  # 仓库 checkout 根——随仓库移动自适应
+_PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", _DEFAULT_PROJECT_ROOT))
+_RESEARCH_ROOT = Path(os.environ.get("RESEARCH_ROOT", "E:/firsbee"))
 
 
 def _load_paths_yaml() -> dict[str, str]:
@@ -48,7 +50,7 @@ def _load_paths_yaml() -> dict[str, str]:
 
 _yaml_paths = _load_paths_yaml()
 
-_POOL_ROOT = Path(os.environ.get("POOL_ROOT", "/mnt/e/frisbee-pool"))
+_POOL_ROOT = Path(os.environ.get("POOL_ROOT", "E:/frisbee-pool"))
 
 # Convenience accessors
 RESEARCH_ROOT = Path(_RESEARCH_ROOT)

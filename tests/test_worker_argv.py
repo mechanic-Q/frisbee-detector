@@ -1,32 +1,35 @@
 """worker_paths.build_worker_argv 单测（纯标准库，任何 python 环境可跑）。"""
 
-from gui.worker_paths import build_worker_argv, gpu_queue_script, main_checkout_root
+import os
+
+from gui.worker_paths import (
+    PROJECT_ROOT_GUI,
+    build_worker_argv,
+    python_exe,
+)
 
 
 def test_argv_wraps_gpu_queue_lock():
     argv = build_worker_argv("E:/x/a.mp4", "E:/runs/out")
-    assert argv[0] == "--cd"
-    # bash + 主 checkout 的 gpu_run.sh + 任务名 + 原命令
-    i = argv.index("bash")
-    assert argv[i + 1].endswith("tools/gpu_run.sh")
-    assert "frisbee-detector" in argv[i + 1]
-    assert argv[i + 2] == "gui-analysis"
-    assert argv[i + 3:] == ["python3", "-m", "frisbee_analyzer.pipeline",
-                            "--video", "E:/x/a.mp4", "--output-dir", "E:/runs/out"]
+    assert argv[:3] == [python_exe(), str(PROJECT_ROOT_GUI / "tools" / "gpu_run.py"),
+                        "gui-analysis"]
+    assert argv[3:] == [python_exe(), "-m", "frisbee_analyzer.pipeline",
+                        "--video", "E:/x/a.mp4", "--output-dir", "E:/runs/out"]
+    assert "wsl" not in " ".join(argv).lower()
+    assert "/mnt/" not in " ".join(argv)
 
 
 def test_argv_weights_and_max_frames():
     argv = build_worker_argv("E:/x/a.mp4", "E:/out", weights_win="E:/frisbee-detector/yolo26x.pt",
                              max_frames=300)
-    assert "--weights" in argv
-    assert argv[argv.index("--weights") + 1] == "/mnt/e/frisbee-detector/yolo26x.pt"
+    assert argv[argv.index("--weights") + 1] == "E:/frisbee-detector/yolo26x.pt"
     assert argv[argv.index("--max-frames") + 1] == "300"
 
 
 def test_argv_without_queue():
     argv = build_worker_argv("E:/x/a.mp4", "E:/out", use_gpu_queue=False)
-    assert "gpu_run.sh" not in " ".join(argv)
-    assert "python3" in argv
+    assert "gpu_run" not in " ".join(argv)
+    assert argv[:3] == [python_exe(), "-m", "frisbee_analyzer.pipeline"]
 
 
 def test_team_only_mode():
@@ -35,7 +38,19 @@ def test_team_only_mode():
     assert "--video" not in argv
 
 
-def test_paths():
-    root = main_checkout_root()
-    assert (root / "tools" / "gpu_run.sh").exists()
-    assert gpu_queue_script().startswith("/mnt/")
+def test_python_exe_env_override():
+    old = os.environ.get("FRISBEE_PYTHON")
+    os.environ["FRISBEE_PYTHON"] = "py-custom-311"
+    try:
+        assert python_exe() == "py-custom-311"
+        assert build_worker_argv("E:/x/a.mp4", "E:/out", use_gpu_queue=False)[0] == "py-custom-311"
+    finally:
+        if old is None:
+            os.environ.pop("FRISBEE_PYTHON", None)
+        else:
+            os.environ["FRISBEE_PYTHON"] = old
+
+
+def test_gpu_run_py_exists():
+    assert (PROJECT_ROOT_GUI / "tools" / "gpu_run.py").exists()
+    assert (PROJECT_ROOT_GUI / "frisbee_analyzer" / "pipeline.py").exists()

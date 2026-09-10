@@ -1,8 +1,0 @@
-path: E:/frisbee-detector/data/datasets/players_e4_clean
-train: images/train
-val: images/val
-names:
-  0: player-red
-  1: player-blue
-  2: referee
-  3: spectator

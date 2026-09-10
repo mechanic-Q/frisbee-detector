@@ -4,7 +4,7 @@ Runs YOLO per-frame, picks the most-likely frisbee candidate via Kalman
 filter + weighted scoring, draws a sliding-window trajectory line.
 
 Usage:
-    python3 inference/predict_track.py --video movie/test.mp4
+    python inference/predict_track.py --video movie/test.mp4
 """
 
 import argparse
