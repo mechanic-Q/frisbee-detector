@@ -42,11 +42,10 @@ python3 tools/collect_hard_negatives.py \
   --output data/datasets/frisbee_merged/images/train_hard_neg
 ```
 
-## Match-analysis GUI v0 (feat/gui-v0 → .worktrees/gui-v0)
+## Match-analysis GUI v0（已并入主线；原 feat/gui-v0 → .worktrees/gui-v0 的 worktree 已于 2026-09-11 移除，直接在主 checkout 运行）
 
 ```bash
 # PySide6 MUST be on python.org Python 3.11 — conda 3.13 hits a Qt DLL load failure
-cd .worktrees/gui-v0
 py -3.11 -m pip install PySide6 opencv-python numpy   # once
 py -3.11 -m gui.main                                  # GUI: open video → analyze → overlay replay
 QT_QPA_PLATFORM=offscreen py -3.11 -m gui.main --smoke VIDEO [TRACKS_JSON]   # headless smoke

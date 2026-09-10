@@ -624,6 +624,7 @@ GUI 会话（.worktrees/gui-v0）在 09-09 自治窗口完成 **7 轮带验收�
 ### 13.5 其他落地
 
 - worker 新增 `--no-field-filter`（c72c145）：保存未过滤原始检出——自动标定需要全部 person 检出，场内过滤会截断标定输入。
+- **分支/worktree 收编（09-11，用户要求）**：全部内容已并入 `main`（`dev` 同步同点）。4 个 worktree（auto-label/auto-gt/auto-calib/gui-v0）及其分支删除——遗留工件存 `results/worktree_artifacts/`，gui_analysis 15 个分析 run 迁至主仓 `runs/gui_analysis/`；4 个 5-6 月旧实验分支（v5/v6-Mahalanobis/siglip/v7-classifier）以 `archive/*` tag 保留后删除（其中 v6 的 6 状态 Kalman 从未合入主线，恢复实验从 tag 取）。远端仅剩 `main`/`dev`。
 - 项目 wiki 按 llm-wiki 规则初始化（index/log + comparisons/concepts/entities/queries/synthesis，已沉淀基准对比、金标准修正、硬负样本、P2 头、GPU 可靠性、单目测速等页）。
 - Windows native 训练通路跑通（11s 30ep + 3ep 速度探针 `results/speed_probe_win_run/`），作为 WSL GPU-PV 队列之外的备份通道。
 
