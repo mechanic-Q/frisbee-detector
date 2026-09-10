@@ -1,0 +1,11 @@
+{
+ "frames": 100,
+ "tiers": {
+  "green": 573,
+  "yellow": 914,
+  "orange": 1859,
+  "gray": 17461
+ },
+ "homography_used": true,
+ "note": "VLM 通道不可用（API key 已按安全要求清理）；改用共识度分层 + 人工目检"
+}
