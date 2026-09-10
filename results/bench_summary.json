@@ -14,8 +14,7 @@
   "P": 0.7287,
   "R": 0.5528,
   "params_M": 9.41,
-  "weights": "runs/detect/bench_11s/weights/best.pt",
-  "note": "retrained Sep 10 (30ep, windows native); \u6743\u91cd\u9057\u5931\u540e\u540c\u914d\u65b9\u8865\u6d4b"
+  "note": "retrained (30ep, windows native, completed after OOM retry)"
  },
  "yolo26s": {
   "mAP50": 0.5697,

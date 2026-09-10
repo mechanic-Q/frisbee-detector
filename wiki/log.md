@@ -1,5 +1,14 @@
 # Wiki Log
 
+## 2026-09-10（下午续）
+
+- 11s 权重遗失解决：Windows 原生重训完成（30ep），test mAP50 = 0.6122（与首次同配方数字一致，配方稳定性交叉验证）
+- D-FINE-S test 评测完成：mAP50 = 0.8655 / mAP50-95 = 0.647（WSL 侧，checkpoint 名修正 best_stg1.pth）
+- prod v8s-P2 权重确认完整（best/last/11 快照，ComfyUI 侧），test mAP50 = 0.8092 已验证；"prod 需恢复"为状态误判
+- D-FINE @1280 直接推理验证：不可行（位置编码绑定），@1280 需重训（待排）
+- 速度公平对比（同 640）：YOLOv8s 167.9 FPS vs D-FINE-S 52.8 FPS（3.2x）——离线场景可接受
+- bench_summary.json 全部 4 模型数字补齐，无 ERROR
+
 ## 2026-09-10
 
 - 创建飞盘项目 wiki：purpose.md + schema.md + index.md + log.md（按 llm-wiki nashsu 模板）
