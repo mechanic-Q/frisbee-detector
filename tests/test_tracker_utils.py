@@ -7,13 +7,71 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils.tracker_utils import init_kalman, score_candidates, Trajectory
+from utils.tracker_utils import (
+    GATE_THRESHOLD,
+    init_kalman,
+    mahalanobis_gate,
+    score_candidates,
+    Trajectory,
+)
 
 
 def test_kalman_init_state():
     kf = init_kalman()
     state = kf.statePost  # (4, 1) after init
     assert state.shape == (4, 1), f"Expected (4, 1), got {state.shape}"
+
+
+def test_kalman_init_default_is_4state():
+    """Default must stay the historical 4-state baseline (no silent behavior change)."""
+    kf = init_kalman()
+    assert kf.transitionMatrix.shape == (4, 4)
+    assert kf.statePost.shape == (4, 1)
+    assert abs(float(kf.processNoiseCov[0, 0]) - 0.003) < 1e-6
+
+
+def test_kalman_init_6state():
+    kf = init_kalman(6)
+    assert kf.transitionMatrix.shape == (6, 6)
+    assert kf.measurementMatrix.shape == (2, 6)
+    # velocity rows must be plain constant-velocity at indices 2,3 (v x/y), acceleration at 4,5
+    assert kf.transitionMatrix[0, 2] == 1.0 and kf.transitionMatrix[0, 4] == 0.5
+    assert kf.transitionMatrix[2, 4] == 1.0
+
+
+def test_kalman_init_rejects_unknown_nstate():
+    import pytest
+    with pytest.raises(ValueError):
+        init_kalman(5)
+
+
+def test_mahalanobis_gate_near_vs_far_4state():
+    kf = init_kalman(4)
+    prediction = (100.0, 100.0)
+    near = mahalanobis_gate(kf, prediction, (102.0, 101.0))
+    far = mahalanobis_gate(kf, prediction, (400.0, 300.0))
+    assert near >= 0.0 and far > near
+    assert far > GATE_THRESHOLD > near
+
+
+def test_mahalanobis_gate_near_vs_far_6state():
+    kf = init_kalman(6)
+    prediction = (100.0, 100.0)
+    near = mahalanobis_gate(kf, prediction, (102.0, 101.0))
+    far = mahalanobis_gate(kf, prediction, (400.0, 300.0))
+    assert near >= 0.0 and far > near
+    assert far > GATE_THRESHOLD > near
+
+
+def test_kalman_6state_predict_update():
+    kf = init_kalman(6)
+    obs = np.array([[320.0], [240.0]], dtype=np.float32)
+    for _ in range(20):
+        kf.predict()
+        kf.correct(obs)
+    state = kf.statePost
+    assert abs(float(state[0, 0]) - 320.0) < 10.0, f"px drifted: {float(state[0, 0])}"
+    assert abs(float(state[1, 0]) - 240.0) < 10.0, f"py drifted: {float(state[1, 0])}"
 
 
 def test_kalman_predict_update():
