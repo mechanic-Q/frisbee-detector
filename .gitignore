@@ -85,3 +85,19 @@ venv/
 results/synth_preview/*
 !results/synth_preview/*.json
 !results/synth_preview/synth_000010.jpg
+
+# ── 三方仓库克隆 / 参考资料库（原地保留，不进 git）──────────────
+/D-FINE/
+/.agent-references/
+
+# 本地研究数据与诊断输出（按 AGENTS 规则不入库）
+/data/annotation/
+/data/perbox_crops/
+/data/fp_spotcheck_50/
+/data/fp_spotcheck_v7_20min/
+/data/fp_spotcheck_v7_50/
+/data/fp_spotcheck_v7_55min/
+/data/video_analysis/
+/team_color_check.json
+/results/speed_probe_win_run/
+/results/worktree_artifacts/**/*.mp3

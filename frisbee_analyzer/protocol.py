@@ -1,7 +1,10 @@
-"""JSON-lines 协议：分析 worker 与 PySide6 GUI 之间的消息 schema 与路径转换。
+"""JSON-lines 协议：分析 worker 与 PySide6 GUI 之间的消息 schema。
 
-纯标准库——WSL 侧 worker 进程与 Windows 侧 GUI 进程都能直接导入，
-不引入 cv2/torch/Qt。消息格式见 docs/superpowers/plans/2026-09-09-gui-v0.md §3。
+纯标准库——worker 与 GUI 进程都能直接导入，不引入 cv2/torch/Qt。
+消息格式见 docs/superpowers/plans/2026-09-09-gui-v0.md §3。
+
+历史注：win_to_wsl/wsl_to_win 是 2026-09-11 之前"Windows GUI + WSL worker"架构的
+路径转换器，现已不再使用（worker 与 GUI 同在 Windows 原生运行），仅为兼容保留。
 """
 
 from __future__ import annotations
@@ -52,7 +55,7 @@ def parse_line(line: str) -> dict | None:
         return log(line)
 
 
-# ── 路径转换（Windows GUI ↔ WSL worker）─────────────────────────────
+# ── 路径转换（已废弃：Windows GUI ↔ WSL worker 时代遗留，无调用方）──
 
 _WIN_DRIVE = re.compile(r"^([A-Za-z]):[/\\](.*)$")
 _WSL_MOUNT = re.compile(r"^/mnt/([a-z])(/.*)?$")

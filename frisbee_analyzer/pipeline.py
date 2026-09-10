@@ -1,14 +1,19 @@
 """分析 worker CLI：stdout 输出 JSON-lines 进度，产物为 per-video tracks.json。
 
-在 WSL 运行（也接受 Windows 路径，内部自动转换）：
-    python3 -m frisbee_analyzer.pipeline \
-        --video 'E:\\frisbee-detector\\data\\bili_final_test\\testclip_60_120s.mp4'
+Windows 原生运行（不再经 WSL；路径按原样使用）：
+    python -m frisbee_analyzer.pipeline --video E:/frisbee-detector/data/bili_final_test/testclip_60_120s.mp4
 
 GUI 通过 QProcess 启动本模块并逐行解析 stdout（协议见 frisbee_analyzer/protocol.py）。
 退出码：0 成功；1 出错；2 被 GUI 取消。
 """
 
 from __future__ import annotations
+
+import os
+
+# Windows 原生: torch 与其他库各带一份 OpenMP 运行时(libiomp5md.dll),不设会 OMP Error #15 崩溃。
+# 必须在导入 torch(.tracking)之前生效。
+os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
 import argparse
 import json
@@ -17,7 +22,6 @@ import traceback
 from pathlib import Path
 
 from . import protocol
-from .protocol import win_to_wsl, wsl_to_win
 from .tracking import WorkerCancelled, iter_player_tracks, probe_video
 
 PROGRESS_EVERY = 30  # 每 N 帧上报一次进度（GUI 进度条足够平滑）
@@ -25,7 +29,7 @@ PROGRESS_EVERY = 30  # 每 N 帧上报一次进度（GUI 进度条足够平滑�
 
 def run(args, stream=None) -> int:
     """执行一次分析。stream 参数便于测试注入。返回退出码。"""
-    video = win_to_wsl(args.video)
+    video = args.video
     if not Path(video).exists():
         protocol.emit(protocol.error(f"video not found: {video}"), stream)
         return 1
@@ -102,7 +106,7 @@ def run(args, stream=None) -> int:
         try:
             from utils.homography import load_calibration
 
-            calib = load_calibration(win_to_wsl(args.calibration))
+            calib = load_calibration(args.calibration)
             matrix, polygon = calib["matrix"], FIELD_POLYGON_M
         except Exception as e:  # noqa: BLE001 —— 标定读取失败则退回启发式
             protocol.emit(protocol.log(f"field filter: calibration ignored ({e})"), stream)
@@ -119,7 +123,7 @@ def run(args, stream=None) -> int:
         route = "polygon(calibrated)" if matrix is not None else f"heuristic(min_y_frac={args.min_y_frac})"
         protocol.emit(protocol.log(f"field filter({route}): {total_before} -> {total_after} dets"), stream)
 
-    out_dir = Path(win_to_wsl(args.output_dir)) if args.output_dir else Path("runs/gui_analysis") / Path(video).stem
+    out_dir = Path(args.output_dir) if args.output_dir else Path("runs/gui_analysis") / Path(video).stem
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "tracks.json"
     tmp_path = out_path.with_suffix(".json.tmp")
@@ -139,7 +143,7 @@ def run(args, stream=None) -> int:
         try:
             from .events_runner import compute_events
 
-            events_doc = compute_events(doc, Path(win_to_wsl(args.calibration)))
+            events_doc = compute_events(doc, Path(args.calibration))
             doc["events"] = events_doc["events"]
             doc["score"] = events_doc["score"]
             protocol.emit(protocol.log(
@@ -150,7 +154,7 @@ def run(args, stream=None) -> int:
     tmp_path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
     tmp_path.replace(out_path)  # 原子写：中断不会留下半截 JSON
 
-    protocol.emit(protocol.result(wsl_to_win(str(out_path))), stream)
+    protocol.emit(protocol.result(str(out_path)), stream)
     return 0
 
 
@@ -158,7 +162,7 @@ def run_team_only(args, stream=None) -> int:
     """只重算分队（复用已有 tracks.json 的跟踪结果），用于换分队算法后免重跑 50 分钟跟踪。"""
     from .team import assign_teams
 
-    doc_path = Path(win_to_wsl(args.team_only))
+    doc_path = Path(args.team_only)
     if not doc_path.exists():
         protocol.emit(protocol.error(f"tracks.json not found: {doc_path}"), stream)
         return 1
@@ -175,13 +179,13 @@ def run_team_only(args, stream=None) -> int:
     tmp = doc_path.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
     tmp.replace(doc_path)
-    protocol.emit(protocol.result(wsl_to_win(str(doc_path))), stream)
+    protocol.emit(protocol.result(str(doc_path)), stream)
     return 0
 
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="frisbee match analysis worker (JSON-lines on stdout)")
-    parser.add_argument("--video", default=None, help="视频路径（Windows 或 WSL 风格均可；--team-only 时可省）")
+    parser.add_argument("--video", default=None, help="视频路径（--team-only 时可省）")
     parser.add_argument("--output-dir", default=None, help="产物目录（默认 runs/gui_analysis/<视频名>）")
     parser.add_argument("--weights", default="yolo26x.pt", help="检测权重（零样本 COCO person 或 player/referee 微调）")
     parser.add_argument("--conf", type=float, default=0.25)

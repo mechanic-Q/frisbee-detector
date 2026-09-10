@@ -1,0 +1,41 @@
+{
+  "rows": [
+    {
+      "label": "baseline-zeroshot",
+      "frames": 1800,
+      "dets": 38364,
+      "dets_per_frame": 21.31,
+      "team_dist": {
+        "0": 22927,
+        "1": 12653,
+        "None": 2784
+      },
+      "assigned_ratio": 0.927,
+      "cls_dist": {
+        "None": 38364
+      }
+    },
+    {
+      "label": "players_e4_v1",
+      "frames": 300,
+      "dets": 7270,
+      "dets_per_frame": 24.23,
+      "team_dist": {
+        "0": 3872,
+        "1": 3033,
+        "2": 365
+      },
+      "assigned_ratio": 1.0,
+      "cls_dist": {
+        "0": 3872,
+        "1": 3033,
+        "2": 365
+      }
+    }
+  ],
+  "delta": {
+    "dets_per_frame_delta": 2.92,
+    "assigned_ratio_delta": 0.073,
+    "referee_dets_new": 365
+  }
+}

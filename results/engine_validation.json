@@ -1,5 +1,5 @@
 {
- "input": "E:\\frisbee-detector\\.worktrees\\gui-v0\\runs\\gui_analysis\\accept_10min\\tracks.json",
+ "input": "E:\\frisbee-detector\\runs\\gui_analysis\\accept_10min\\tracks.json",
  "frames": 18004,
  "duration_s": 600.1,
  "tracks": 897,

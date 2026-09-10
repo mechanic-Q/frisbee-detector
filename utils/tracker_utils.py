@@ -1,7 +1,8 @@
 """Single-frisbee tracker: Kalman filter + candidate scoring + trajectory.
 
 Functions:
-    init_kalman          — create and configure cv2.KalmanFilter(4, 2)
+    init_kalman          — create and configure cv2.KalmanFilter (4- or 6-state)
+    mahalanobis_gate     — Mahalanobis d² of a measurement vs the prediction
     score_candidates     — pick the best candidate box per frame
     Trajectory           — ring buffer of tracked positions + areas
 """
@@ -17,21 +18,75 @@ MIN_DISPLACEMENT = 5.0  # px/frame, threshold for "moving"
 REFERENCE_AREA = 200.0  # px², rough frisbee box area in 1280×720 video
 MIN_SCORE = 0.3  # minimum score to accept any candidate
 
+# chi²_{0.999}(df=2) — reject only extreme jumps (v3 宽松安全网档, 见
+# docs/superpowers/plans/2026-06-08-mahalanobis-v3-post-gate.md)
+GATE_THRESHOLD = 13.8155
 
-def init_kalman() -> cv2.KalmanFilter:
-    """Create a 4-state Kalman filter for position + velocity tracking."""
-    kf = cv2.KalmanFilter(4, 2)
-    kf.measurementMatrix = np.array([[1, 0, 0, 0], [0, 1, 0, 0]], dtype=np.float32)
-    kf.transitionMatrix = np.array([
-        [1, 0, 1, 0],
-        [0, 1, 0, 1],
-        [0, 0, 1, 0],
-        [0, 0, 0, 1],
+
+def init_kalman(nstate: int = 4) -> cv2.KalmanFilter:
+    """Create a Kalman filter for frisbee position tracking.
+
+    nstate=4 (default): (px,py,vx,vy), process noise 0.003 — historical baseline.
+    nstate=6: (px,py,vx,vy,ax,ay), process noise 0.1 — 2026-06 mahalanobis branch;
+    prediction fits frisbee motion tighter (smaller d²), but end-to-end A/B vs
+    4-state was never completed — enable via --kalman-6state, not by default.
+    """
+    if nstate == 6:
+        kf = cv2.KalmanFilter(6, 2)
+        dt = 1.0
+        kf.measurementMatrix = np.array([
+            [1, 0, 0, 0, 0, 0],
+            [0, 1, 0, 0, 0, 0],
+        ], dtype=np.float32)
+        kf.transitionMatrix = np.array([
+            [1, 0, dt, 0, 0.5 * dt * dt, 0],
+            [0, 1, 0, dt, 0, 0.5 * dt * dt],
+            [0, 0, 1, 0, dt, 0],
+            [0, 0, 0, 1, 0, dt],
+            [0, 0, 0, 0, 1, 0],
+            [0, 0, 0, 0, 0, 1],
+        ], dtype=np.float32)
+        kf.processNoiseCov = np.eye(6, dtype=np.float32) * 0.1
+        kf.measurementNoiseCov = np.eye(2, dtype=np.float32) * 0.1
+        kf.errorCovPost = np.eye(6, dtype=np.float32) * 100.0
+        return kf
+    if nstate == 4:
+        kf = cv2.KalmanFilter(4, 2)
+        kf.measurementMatrix = np.array([[1, 0, 0, 0], [0, 1, 0, 0]], dtype=np.float32)
+        kf.transitionMatrix = np.array([
+            [1, 0, 1, 0],
+            [0, 1, 0, 1],
+            [0, 0, 1, 0],
+            [0, 0, 0, 1],
+        ], dtype=np.float32)
+        kf.processNoiseCov = np.eye(4, dtype=np.float32) * 0.003
+        kf.measurementNoiseCov = np.eye(2, dtype=np.float32) * 0.1
+        kf.errorCovPost = np.eye(4, dtype=np.float32) * 100.0
+        return kf
+    raise ValueError(f"init_kalman: unsupported nstate={nstate} (use 4 or 6)")
+
+
+def mahalanobis_gate(
+    kf: cv2.KalmanFilter,
+    prediction: tuple[float, float],
+    measurement: tuple[float, float],
+) -> float:
+    """Return Mahalanobis d² of `measurement` vs `prediction` (2 DOF).
+
+    Adapts the observation matrix to the filter's state size, so it works with
+    both init_kalman(4) and init_kalman(6). This only MEASURES inconsistency —
+    gating decisions live in the caller.
+    """
+    n = kf.transitionMatrix.shape[0]  # cv2 binding has no stateSize attr
+    H = np.zeros((2, n), dtype=np.float32)
+    H[0, 0] = 1.0
+    H[1, 1] = 1.0
+    innov = np.array([
+        [measurement[0] - prediction[0]],
+        [measurement[1] - prediction[1]],
     ], dtype=np.float32)
-    kf.processNoiseCov = np.eye(4, dtype=np.float32) * 0.003
-    kf.measurementNoiseCov = np.eye(2, dtype=np.float32) * 0.1
-    kf.errorCovPost = np.eye(4, dtype=np.float32) * 100.0
-    return kf
+    S = H @ kf.errorCovPost @ H.T + kf.measurementNoiseCov
+    return float((innov.T @ np.linalg.inv(S) @ innov)[0, 0])
 
 
 def score_candidates(

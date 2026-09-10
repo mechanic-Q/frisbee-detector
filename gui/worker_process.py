@@ -1,6 +1,6 @@
-"""分析 worker 进程管理：QProcess → wsl.exe → python3 -m frisbee_analyzer.pipeline。
+"""分析 worker 进程管理：QProcess → python -m frisbee_analyzer.pipeline（Windows 原生）。
 
-跨约定：GUI 传 Windows 路径（统一正斜杠防 wsl.exe 引号坑），worker 内部转换；
+约定：GUI 与 worker 同在 Windows 原生运行，路径按原样传递；
 stdout 逐行 JSON（协议 frisbee_analyzer/protocol.py），强制 UTF-8。
 """
 
@@ -10,7 +10,7 @@ from PySide6.QtCore import QProcess, QProcessEnvironment, QTimer, Signal
 
 from frisbee_analyzer import protocol
 
-from .worker_paths import build_worker_argv
+from .worker_paths import PROJECT_ROOT_GUI, build_worker_argv
 
 
 class AnalysisWorker(QProcess):
@@ -39,10 +39,12 @@ class AnalysisWorker(QProcess):
         env = QProcessEnvironment.systemEnvironment()
         env.insert("PYTHONUTF8", "1")
         env.insert("PYTHONUNBUFFERED", "1")
+        env.insert("KMP_DUPLICATE_LIB_OK", "TRUE")  # Windows 双 OpenMP 运行时规避
         self.setProcessEnvironment(env)
-        self.setProgram("wsl.exe")
-        self.setArguments(argv)
-        self.logLine.emit(f"$ wsl.exe {' '.join(argv)}")
+        self.setWorkingDirectory(str(PROJECT_ROOT_GUI))  # 保证 -m 能找到包
+        self.setProgram(argv[0])
+        self.setArguments(argv[1:])
+        self.logLine.emit(f"$ {' '.join(argv)}")
         self.start()
 
     def cancel(self) -> None:

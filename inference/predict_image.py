@@ -27,7 +27,7 @@ if __name__ == "__main__":
     if not os.path.exists(args.model):
         candidates = [
             args.model,
-            "/mnt/e/frisbee-detector/runs/detect/runs/detect/frisbee_det_s/weights/best.pt",
+            "E:/frisbee-detector/runs/detect/frisbee_det_s/weights/best.pt",
         ]
         args.model = next((c for c in candidates if os.path.exists(c)), args.model)
     predict_image(args.model, args.source, args.conf, args.save_dir)

@@ -35,7 +35,7 @@ CORNERS_WORLD = FIELD
 
 
 def load_foot_points(path: str, min_height_frac: float = 0.05) -> np.ndarray:
-    doc = json.loads(Path(protocol.win_to_wsl(path)).read_text(encoding="utf-8"))
+    doc = json.loads(Path(path).read_text(encoding="utf-8"))
     h = doc.get("height") or 1080
     pts = []
     for dets in doc["frames"].values():

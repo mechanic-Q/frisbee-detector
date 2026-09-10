@@ -4,7 +4,7 @@ Runs YOLO per-frame, picks the most-likely frisbee candidate via Kalman
 filter + weighted scoring, draws a sliding-window trajectory line.
 
 Usage:
-    python3 inference/predict_track.py --video movie/test.mp4
+    python inference/predict_track.py --video movie/test.mp4
 """
 
 import argparse
@@ -20,7 +20,13 @@ from ultralytics import YOLO
 
 from configs.models import V3_MODEL, DEFAULT_CONF
 from utils.homography import load_calibration, pixel_to_world
-from utils.tracker_utils import init_kalman, score_candidates, Trajectory
+from utils.tracker_utils import (
+    GATE_THRESHOLD,
+    init_kalman,
+    mahalanobis_gate,
+    score_candidates,
+    Trajectory,
+)
 
 LOST_TRACK_THRESHOLD = 15  # frames
 STATIONARY_CHECK_INTERVAL = 5
@@ -51,6 +57,12 @@ def get_args():
     parser.add_argument("--conf", type=float, default=DEFAULT_CONF)
     parser.add_argument("--output-dir", type=str, default=None)
     parser.add_argument("--no-visualize", action="store_true", default=False)
+    parser.add_argument("--kalman-6state", action="store_true", default=False,
+                        help="6-state Kalman (px,py,vx,vy,ax,ay) — 2026-06 实验线, 默认仍为 4-state 基线")
+    parser.add_argument("--mahalanobis-gate", action="store_true", default=False,
+                        help="事后马氏门控: 候选 d² 超阈值时降级纯预测, 不用野值纠正滤波器")
+    parser.add_argument("--gate-threshold", type=float, default=GATE_THRESHOLD,
+                        help=f"马氏门控 d² 阈值 (默认 {GATE_THRESHOLD}, chi²_0.999 df=2)")
     return parser.parse_args()
 
 
@@ -98,7 +110,8 @@ def main():
     print(f"Output: {output_dir}")
 
     model = YOLO(args.model)
-    kf = init_kalman()
+    nstate = 6 if args.kalman_6state else 4
+    kf = init_kalman(nstate)
     trajectory = Trajectory()
     status = "searching"
     lost_counter = 0
@@ -152,7 +165,7 @@ def main():
                 for i in range(1, STATIONARY_CHECK_INTERVAL)
             )
             if max_d < STATIONARY_MAX_DISPLACEMENT:
-                kf = init_kalman()
+                kf = init_kalman(nstate)
                 trajectory = Trajectory()
                 status = "searching"
                 lost_counter = 0
@@ -164,7 +177,7 @@ def main():
             if lost_counter > LOST_TRACK_THRESHOLD:
                 status = "searching"
                 current_status = "searching"
-                kf = init_kalman()
+                kf = init_kalman(nstate)
             else:
                 status = "predicting"
                 prediction = kf.predict()
@@ -186,48 +199,86 @@ def main():
                 bw = bx[2] - bx[0]
                 bh = bx[3] - bx[1]
                 area = bw * bh
-                meas = np.array([[cx], [cy]], dtype=np.float32)
-                kf.correct(meas)
-                status = "tracking"
-                lost_counter = 0
-                trajectory.push(cx, cy, area)
-                current_status = "tracking"
 
-                vx = float(kf.statePost[2, 0])
-                vy = float(kf.statePost[3, 0])
-                row = {
-                    "frame": frame_idx, "px": round(cx, 1), "py": round(cy, 1),
-                    "vx": round(vx, 2), "vy": round(vy, 2),
-                    "conf": round(float(best["conf"]), 4), "status": status,
-                    "wx": None, "wy": None,
-                }
-                if matrix is not None:
+                # Mahalanobis d² of the chosen candidate vs the prediction —
+                # always logged (data collection), optionally enforced as a gate.
+                d2 = None
+                if is_tracking and pred_pt is not None and len(trajectory._pts) >= 3:
                     try:
-                        wx, wy = pixel_to_world(matrix, cx, cy)
-                        row["wx"] = round(wx, 2)
-                        row["wy"] = round(wy, 2)
-                        if not (0.0 <= wx <= 100.0 and 0.0 <= wy <= 37.0):
-                            # Outside field → likely FP → skip
-                            continue
-                        # Velocity check: reject > 25 m/s (impossible for frisbee)
-                        if last_wx is not None and last_wy is not None:
-                            dt = (frame_idx - int(all_rows[-1]["frame"])) / 25.0 if all_rows else 1.0
-                            if dt > 0:
-                                speed = np.sqrt((wx - last_wx) ** 2 + (wy - last_wy) ** 2) / max(dt, 0.001)
-                                if speed > 25.0:
-                                    continue
-                        last_wx = wx
-                        last_wy = wy
-                    except Exception:
-                        row["wx"] = None
-                        row["wy"] = None
-                all_rows.append(row)
+                        d2 = mahalanobis_gate(kf, pred_pt, (cx, cy))
+                    except np.linalg.LinAlgError:
+                        d2 = None
 
-                if out_video is not None:
-                    x1, y1, x2, y2 = int(bx[0]), int(bx[1]), int(bx[2]), int(bx[3])
-                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                    cv2.putText(frame, "Frisbee", (x1, y1 - 5),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                gated = bool(
+                    args.mahalanobis_gate and d2 is not None and d2 > args.gate_threshold
+                )
+
+                if gated:
+                    # v3 post-gate: 候选与运动模型严重不符 → 降级纯预测,
+                    # 不用野值纠正滤波器 (docs/.../2026-06-08-mahalanobis-v3-post-gate.md)
+                    lost_counter += 1
+                    status = "predicting"
+                    current_status = "gated"
+                    px, py = pred_pt
+                    if 0 <= px <= w and 0 <= py <= h:
+                        trajectory.push(px, py, area)
+                    all_rows.append({
+                        "frame": frame_idx, "px": round(px, 1), "py": round(py, 1),
+                        "vx": round(float(kf.statePost[2, 0]), 2),
+                        "vy": round(float(kf.statePost[3, 0]), 2),
+                        "conf": round(float(best["conf"]), 4), "status": "gated",
+                        "wx": None, "wy": None,
+                        "mahalanobis_d2": round(d2, 1),
+                    })
+                    if out_video is not None:
+                        x1, y1, x2, y2 = int(bx[0]), int(bx[1]), int(bx[2]), int(bx[3])
+                        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
+                        cv2.putText(frame, "gated", (x1, y1 - 5),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+                else:
+                    meas = np.array([[cx], [cy]], dtype=np.float32)
+                    kf.correct(meas)
+                    status = "tracking"
+                    lost_counter = 0
+                    trajectory.push(cx, cy, area)
+                    current_status = "tracking"
+
+                    vx = float(kf.statePost[2, 0])
+                    vy = float(kf.statePost[3, 0])
+                    row = {
+                        "frame": frame_idx, "px": round(cx, 1), "py": round(cy, 1),
+                        "vx": round(vx, 2), "vy": round(vy, 2),
+                        "conf": round(float(best["conf"]), 4), "status": status,
+                        "wx": None, "wy": None,
+                        "mahalanobis_d2": round(d2, 1) if d2 is not None else None,
+                    }
+                    if matrix is not None:
+                        try:
+                            wx, wy = pixel_to_world(matrix, cx, cy)
+                            row["wx"] = round(wx, 2)
+                            row["wy"] = round(wy, 2)
+                            if not (0.0 <= wx <= 100.0 and 0.0 <= wy <= 37.0):
+                                # Outside field → likely FP → skip
+                                continue
+                            # Velocity check: reject > 25 m/s (impossible for frisbee)
+                            if last_wx is not None and last_wy is not None:
+                                dt = (frame_idx - int(all_rows[-1]["frame"])) / 25.0 if all_rows else 1.0
+                                if dt > 0:
+                                    speed = np.sqrt((wx - last_wx) ** 2 + (wy - last_wy) ** 2) / max(dt, 0.001)
+                                    if speed > 25.0:
+                                        continue
+                            last_wx = wx
+                            last_wy = wy
+                        except Exception:
+                            row["wx"] = None
+                            row["wy"] = None
+                    all_rows.append(row)
+
+                    if out_video is not None:
+                        x1, y1, x2, y2 = int(bx[0]), int(bx[1]), int(bx[2]), int(bx[3])
+                        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                        cv2.putText(frame, "Frisbee", (x1, y1 - 5),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
         if out_video is not None:
             draw_trajectory(frame, trajectory)
@@ -248,7 +299,7 @@ def main():
 
     if all_rows:
         csv_path = output_dir / f"{video_path.stem}_tracks.csv"
-        fieldnames = ["frame", "px", "py", "vx", "vy", "conf", "status", "wx", "wy"]
+        fieldnames = ["frame", "px", "py", "vx", "vy", "conf", "status", "wx", "wy", "mahalanobis_d2"]
         with open(csv_path, "w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
