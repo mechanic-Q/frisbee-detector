@@ -1,0 +1,17 @@
+{
+ "cell": "c3_shadow_fusion",
+ "n_disc_frames": 104,
+ "n_player_frames": 300,
+ "status_dist": {
+  "tracking": 49,
+  "predicting": 55
+ },
+ "longest_contiguous_frames": 10,
+ "longest_contiguous_s": 0.4,
+ "field_in": 1,
+ "field_out": 103,
+ "field_out_rate": 0.99,
+ "speed_ms_median": 0.4,
+ "runtime_s": 25.3,
+ "max_frames": 300
+}

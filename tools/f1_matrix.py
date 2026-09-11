@@ -18,6 +18,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))  # 使 utils/ 可导入（analyze 需要）
 PY = sys.executable
 VIDEO = ROOT / "movie/25866279684-1-192_55-56min.mp4"
 CALIB = ROOT / "configs/homography/25866279684-1-192.json"

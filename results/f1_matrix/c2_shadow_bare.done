@@ -1,0 +1,16 @@
+{
+ "cell": "c2_shadow_bare",
+ "n_disc_frames": 198,
+ "n_player_frames": 300,
+ "status_dist": {
+  "raw": 198
+ },
+ "longest_contiguous_frames": 0,
+ "longest_contiguous_s": 0.0,
+ "field_in": 23,
+ "field_out": 175,
+ "field_out_rate": 0.884,
+ "speed_ms_median": null,
+ "runtime_s": 25.3,
+ "max_frames": 300
+}

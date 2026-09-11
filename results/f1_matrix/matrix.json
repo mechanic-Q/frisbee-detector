@@ -1,0 +1,49 @@
+{
+ "c1_prod_baseline": {
+  "cell": "c1_prod_baseline",
+  "n_disc_frames": 0,
+  "n_player_frames": 300,
+  "status_dist": {},
+  "longest_contiguous_frames": 0,
+  "longest_contiguous_s": 0.0,
+  "field_in": 0,
+  "field_out": 0,
+  "field_out_rate": 0.0,
+  "speed_ms_median": null,
+  "runtime_s": 20.5,
+  "max_frames": 300
+ },
+ "c2_shadow_bare": {
+  "cell": "c2_shadow_bare",
+  "n_disc_frames": 198,
+  "n_player_frames": 300,
+  "status_dist": {
+   "raw": 198
+  },
+  "longest_contiguous_frames": 0,
+  "longest_contiguous_s": 0.0,
+  "field_in": 23,
+  "field_out": 175,
+  "field_out_rate": 0.884,
+  "speed_ms_median": null,
+  "runtime_s": 25.3,
+  "max_frames": 300
+ },
+ "c3_shadow_fusion": {
+  "cell": "c3_shadow_fusion",
+  "n_disc_frames": 104,
+  "n_player_frames": 300,
+  "status_dist": {
+   "tracking": 49,
+   "predicting": 55
+  },
+  "longest_contiguous_frames": 10,
+  "longest_contiguous_s": 0.4,
+  "field_in": 1,
+  "field_out": 103,
+  "field_out_rate": 0.99,
+  "speed_ms_median": 0.4,
+  "runtime_s": 25.3,
+  "max_frames": 300
+ }
+}
