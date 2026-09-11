@@ -29,13 +29,13 @@ def load_frames():
     return imgs
 
 
-def run_dfine(imgs, res=640, ckpt_path=None, model_name="dfine_s"):
+def run_dfine(imgs, res=640, ckpt_path=None, model_name="dfine_s", cfg_name="configs/dfine/dfine_hgnetv2_s_frisbee.yml"):
     sys.path.insert(0, str(ROOT / "D-FINE"))
     os.chdir(str(ROOT / "D-FINE"))
     import torchvision.transforms.functional as TF
     from src.core import YAMLConfig
 
-    cfg = YAMLConfig("configs/dfine/dfine_hgnetv2_s_frisbee.yml")
+    cfg = YAMLConfig(cfg_name)
     model = cfg.model
     ckpt = torch.load(str(ckpt_path or (ROOT / "data/bili_final_test/dfine_out/best_stg1.pth")), map_location="cpu")
     model.load_state_dict(ckpt.get("model", ckpt))
@@ -101,6 +101,7 @@ def main():
     ap.add_argument("--dfine-name", type=str, default="dfine_s",
                     help="输出 json 的模型名（如 dfine_s_v3）")
     ap.add_argument("--skip-rfdetr", action="store_true")
+    ap.add_argument("--dfine-cfg", type=str, default="configs/dfine/dfine_hgnetv2_s_frisbee.yml")
     args = ap.parse_args()
 
     imgs = load_frames()
@@ -109,7 +110,7 @@ def main():
     p = OUT / f"{args.dfine_name}.json"
     if not p.exists():
         print(f"run {args.dfine_name} ...", flush=True)
-        r = run_dfine(imgs, ckpt_path=args.dfine_ckpt, model_name=args.dfine_name)
+        r = run_dfine(imgs, ckpt_path=args.dfine_ckpt, model_name=args.dfine_name, cfg_name=args.dfine_cfg)
         p.write_text(json.dumps(r))
         print(f"  -> fps={r['fps']} dets={sum(len(v) for v in r['frames'].values())}", flush=True)
     else:

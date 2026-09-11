@@ -27,16 +27,21 @@ VIDEO = ROOT / "movie/25866279684-1-192_55-56min.mp4"
 
 
 def gpu_idle() -> bool:
+    """图形会话下 compute-apps 恒返回桌面进程列表（N/A 显存）——按显存增量判空闲。
+
+    基线：队列启动时记录当前 used（桌面占用）。之后 used 超基线+2GB 视为忙。
+    """
     try:
-        r = subprocess.run(["nvidia-smi", "--query-compute-apps=pid", "--format=csv,noheader"],
+        r = subprocess.run(["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits"],
                            capture_output=True, text=True, timeout=30)
-        if r.stdout.strip():
-            return False
-        r2 = subprocess.run(["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits"],
-                            capture_output=True, text=True, timeout=30)
-        return int(r2.stdout.strip().splitlines()[0]) < 2000
+        used = int(r.stdout.strip().splitlines()[0])
+        return used < _baseline_mb + 2000
     except Exception:
         return False
+
+
+LOCK_FILE = None  # 占位：gpu_idle 用模块级基线变量
+_baseline_mb = 1200
 
 
 def run(name: str, cmd: list[str], cwd: Path = ROOT) -> bool:
@@ -61,13 +66,19 @@ def run(name: str, cmd: list[str], cwd: Path = ROOT) -> bool:
 
 
 def main() -> int:
+    global _baseline_mb
     MARK.mkdir(parents=True, exist_ok=True)
     LOGD.mkdir(parents=True, exist_ok=True)
+    r = subprocess.run(["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits"],
+                       capture_output=True, text=True, timeout=30)
+    _baseline_mb = int(r.stdout.strip().splitlines()[0])
+    print(f"[q] 显存基线: {_baseline_mb} MB（超基线+2000MB 视为忙）", flush=True)
 
     # 1) obj365 零样本：金标准 100 帧
     if OBJ365.exists():
         run("obj365_zs_golden", [PY, "tools/golden_inference_detr.py",
                                  "--dfine-ckpt", str(OBJ365), "--dfine-name", "dfine_s_obj365_zs",
+                                 "--dfine-cfg", "configs/dfine/dfine_hgnetv2_s_obj365cls.yml",
                                  "--skip-rfdetr"])
         run("obj365_metrics", [PY, "tools/golden_metrics.py", "--gt-v2"])
     else:
@@ -84,7 +95,7 @@ import torchvision.transforms.functional as TF
 from src.core import YAMLConfig
 from frisbee_analyzer.disc_fusion import fuse_disc_detections
 
-cfg = YAMLConfig("configs/dfine/dfine_hgnetv2_s_frisbee.yml")
+cfg = YAMLConfig("configs/dfine/dfine_hgnetv2_s_obj365cls.yml")
 model = cfg.model
 ck = torch.load(r"{OBJ365}", map_location="cpu")
 model.load_state_dict(ck.get("model", ck)); model.eval().cuda()
