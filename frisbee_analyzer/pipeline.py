@@ -21,6 +21,8 @@ import sys
 import traceback
 from pathlib import Path
 
+import numpy as np
+
 from . import protocol
 from .tracking import WorkerCancelled, iter_player_tracks, probe_video
 
@@ -162,6 +164,29 @@ def run(args, stream=None) -> int:
             matrix, polygon = calib["matrix"], FIELD_POLYGON_M
         except Exception as e:  # noqa: BLE001 —— 标定读取失败则退回启发式
             protocol.emit(protocol.log(f"field filter: calibration ignored ({e})"), stream)
+
+    # F1: 段内自动标定（--auto-calibrate，默认关）——用本次 run 的未过滤脚点云
+    # 现场标定，消除"标定文件与素材时段错位"（§13.2/§13.9 三次实证）。在过滤前执行，
+    # 标定 json 落输出目录；若 --calibration 同时给出，段内标定优先（时段匹配）并记录覆盖。
+    if getattr(args, "auto_calibrate", False):
+        from .segment_calib import auto_calibrate_segment
+
+        calib_doc, creport = auto_calibrate_segment(frames, info["width"], info["height"])
+        out_dir_ac = Path(args.output_dir) if args.output_dir else Path("runs/gui_analysis") / Path(video).stem
+        out_dir_ac.mkdir(parents=True, exist_ok=True)
+        if calib_doc is not None:
+            calib_path = out_dir_ac / "segment_calib.json"
+            calib_path.write_text(json.dumps(calib_doc, ensure_ascii=False, indent=1), encoding="utf-8")
+            matrix, polygon = np.asarray(calib_doc["matrix"], dtype=np.float64), FIELD_POLYGON_M
+            protocol.emit(protocol.log(
+                f"auto-calibrate: PASS inlier={creport['optimized_inlier_ratio']} "
+                f"points={creport['points']} -> {calib_path.name}"
+                + (" (overrides --calibration)" if getattr(args, "calibration", None) else "")), stream)
+        else:
+            protocol.emit(protocol.log(
+                f"auto-calibrate: FAIL ({creport.get('reason')}) — 回退"
+                + ("--calibration" if getattr(args, "calibration", None) else "启发式过滤")), stream)
+
     if getattr(args, "no_field_filter", False):
         protocol.emit(protocol.log("field filter: DISABLED (--no-field-filter, raw dets saved)"), stream)
     else:
@@ -256,6 +281,9 @@ def main(argv=None) -> int:
     parser.add_argument("--disc-conf", type=float, default=0.35, help="飞盘检测置信度阈值")
     parser.add_argument("--disc-fusion", action="store_true",
                         help="F1 多维融合：盘检测帧间关联+马氏门控+速度拒绝（默认关）")
+    parser.add_argument("--auto-calibrate", action="store_true",
+                        help="F1 段内自动标定：用本次 run 的球员脚点云现场标定（默认关；"
+                             "给出时优先于 --calibration，过 0.85 内点率门才生效）")
     parser.add_argument("--calibration", default=None,
                         help="场地标定 json：场内过滤升级为多边形过滤；事件统计需要")
     parser.add_argument("--no-field-filter", action="store_true",
