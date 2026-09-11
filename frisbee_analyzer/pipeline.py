@@ -29,6 +29,30 @@ from .tracking import WorkerCancelled, iter_player_tracks, probe_video
 PROGRESS_EVERY = 30  # 每 N 帧上报一次进度（GUI 进度条足够平滑）
 
 
+def _fused_to_disc_doc(fused) -> dict[str, dict]:
+    """融合 DiscFrame 序列 → tracks.json 的 disc_frames 条目（仅 tracking/predicting 入档）。"""
+    out: dict[str, dict] = {}
+    for idx, f in enumerate(fused):
+        if f.status in ("tracking", "predicting") and f.bbox is not None:
+            entry = {
+                "bbox": [round(v, 1) for v in f.bbox],
+                "conf": round(f.conf, 4),
+                "cx": round(f.cx, 1),
+                "cy": round(f.cy, 1),
+                "status": f.status,
+            }
+            if f.d2 is not None:
+                entry["d2"] = f.d2
+            if f.speed_ms is not None:
+                entry["speed_ms"] = f.speed_ms
+            if f.world_xy is not None:
+                entry["world_xy"] = [round(f.world_xy[0], 2), round(f.world_xy[1], 2)]
+            if f.source:
+                entry["source"] = f.source
+            out[str(idx)] = entry
+    return out
+
+
 def run(args, stream=None) -> int:
     """执行一次分析。stream 参数便于测试注入。返回退出码。"""
     video = args.video
@@ -112,29 +136,42 @@ def run(args, stream=None) -> int:
             seq, fps=info["fps"], world_projector=proj,
             width=info["width"], height=info["height"],
         )
-        new_disc: dict[str, dict] = {}
-        for (idx, _orig), f in zip(disc_seq, fused):
-            if f.status in ("tracking", "predicting") and f.bbox is not None:
-                entry = {
-                    "bbox": [round(v, 1) for v in f.bbox],
-                    "conf": round(f.conf, 4),
-                    "cx": round(f.cx, 1),
-                    "cy": round(f.cy, 1),
-                    "status": f.status,
-                }
-                if f.d2 is not None:
-                    entry["d2"] = f.d2
-                if f.speed_ms is not None:
-                    entry["speed_ms"] = f.speed_ms
-                if f.world_xy is not None:
-                    entry["world_xy"] = [round(f.world_xy[0], 2), round(f.world_xy[1], 2)]
-                new_disc[str(idx)] = entry
+        new_disc = _fused_to_disc_doc(fused)
         protocol.emit(protocol.log(
             f"disc-fusion: tracking={fstats.n_tracking} predicting={fstats.n_predicting} "
             f"gated={fstats.n_gated} rejected_speed={fstats.n_rejected_speed} "
             f"lost={fstats.n_lost} longest_track={fstats.longest_track_frames}f "
             f"({len(disc_frames)} -> {len(new_disc)} frames)"), stream)
         disc_frames = new_disc
+
+        # F1 第二检测通道（--hand-roi，默认关）：持盘贴身遮挡的盘整帧看不见（§13.11 G4
+        # 遗留根因）。对融合态非 tracking 帧，取最近持盘人的手部区 crop 放大复检，
+        # 检出并入序列后二次融合。健康 tracking 帧不动。
+        if getattr(args, "hand_roi", False) and fused:
+            from .hand_roi import merge_hand_roi_detections, recheck_video
+
+            players_by_frame = {int(k): v for k, v in frames.items()}
+            extra, hr_stats = recheck_video(
+                video, fused, players_by_frame, disc_weights=args.disc_weights,
+                k=args.hand_roi_k, conf=args.hand_roi_conf, imgsz=args.hand_roi_imgsz,
+                max_gap=args.hand_roi_max_gap,
+                width=info["width"], height=info["height"],
+                log=lambda m: protocol.emit(protocol.log(m), stream))
+            seq2, mstats = merge_hand_roi_detections(seq, extra)
+            fused2, fstats2 = fuse_disc_detections(
+                seq2, fps=info["fps"], world_projector=proj,
+                width=info["width"], height=info["height"],
+            )
+            new_disc2 = _fused_to_disc_doc(fused2)
+            n_roi_src = sum(1 for v in new_disc2.values() if v.get("source") == "hand_roi")
+            protocol.emit(protocol.log(
+                f"hand-roi: frames_with_anchor={hr_stats.frames_with_anchor} "
+                f"rechecked={hr_stats.frames_rechecked} rois={hr_stats.rois_checked} "
+                f"dets={mstats.dets_added} (deduped {mstats.dets_deduped}) -> "
+                f"tracking {fstats.n_tracking}->{fstats2.n_tracking}, "
+                f"longest {fstats.longest_track_frames}->{fstats2.longest_track_frames}f, "
+                f"disc_frames {len(new_disc)}->{len(new_disc2)} (roi-source {n_roi_src})"), stream)
+            disc_frames = new_disc2
 
     if args.team_from_cls:
         from .team import apply_team_from_cls
@@ -281,6 +318,16 @@ def main(argv=None) -> int:
     parser.add_argument("--disc-conf", type=float, default=0.35, help="飞盘检测置信度阈值")
     parser.add_argument("--disc-fusion", action="store_true",
                         help="F1 多维融合：盘检测帧间关联+马氏门控+速度拒绝（默认关）")
+    parser.add_argument("--hand-roi", action="store_true",
+                        help="F1 手部 ROI 复检：持盘贴身遮挡的盘二次检测（隐含 --disc-fusion，默认关）")
+    parser.add_argument("--hand-roi-conf", type=float, default=None,
+                        help="ROI 复检测出阈值（默认 0.30）")
+    parser.add_argument("--hand-roi-imgsz", type=int, default=None,
+                        help="ROI crop 送检分辨率（默认 640）")
+    parser.add_argument("--hand-roi-max-gap", type=int, default=None,
+                        help="距最后观测 ≤ 此帧数才复检（默认 120）")
+    parser.add_argument("--hand-roi-k", type=int, default=None,
+                        help="每帧最多复检的最近球员数（默认 2）")
     parser.add_argument("--auto-calibrate", action="store_true",
                         help="F1 段内自动标定：用本次 run 的球员脚点云现场标定（默认关；"
                              "给出时优先于 --calibration，过 0.85 内点率门才生效）")
@@ -294,6 +341,17 @@ def main(argv=None) -> int:
 
     if not args.team_only and not args.video:
         parser.error("--video is required unless --team-only is used")
+
+    if args.hand_roi:
+        args.disc_fusion = True  # 手部 ROI 定义在融合态之上，隐含开启
+    if any(getattr(args, a) is None for a in
+           ("hand_roi_conf", "hand_roi_imgsz", "hand_roi_max_gap", "hand_roi_k")):
+        from . import hand_roi as _hr
+
+        args.hand_roi_conf = args.hand_roi_conf if args.hand_roi_conf is not None else _hr.HAND_ROI_CONF
+        args.hand_roi_imgsz = args.hand_roi_imgsz if args.hand_roi_imgsz is not None else _hr.HAND_ROI_IMGSZ
+        args.hand_roi_max_gap = args.hand_roi_max_gap if args.hand_roi_max_gap is not None else _hr.HAND_ROI_MAX_GAP
+        args.hand_roi_k = args.hand_roi_k if args.hand_roi_k is not None else _hr.HAND_ROI_K
 
     try:
         if args.team_only:
