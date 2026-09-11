@@ -1,0 +1,34 @@
+__include__: [
+  '../dataset/frisbee_detection_obj365.yml',
+  '../runtime.yml',
+  './include/dataloader.yml',
+  './include/optimizer.yml',
+  './include/dfine_hgnetv2.yml',
+]
+
+output_dir: E:/frisbee-detector/data/bili_final_test/dfine_obj365_out
+
+epoches: 72  # 与 COCO 底座版同预算对照
+
+DFINE:
+  backbone: HGNetv2
+
+HGNetv2:
+  name: 'B0'
+  return_idx: [1, 2, 3]
+  freeze_at: -1
+  freeze_norm: False
+  use_lab: True
+
+DFINETransformer:
+  num_layers: 3
+  eval_idx: -1
+
+HybridEncoder:
+  in_channels: [256, 512, 1024]
+  hidden_dim: 256
+  depth_mult: 0.34
+  expansion: 0.5
+
+train_dataloader:
+  total_batch_size: 8
