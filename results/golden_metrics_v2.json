@@ -261,6 +261,134 @@
     "out_of_field_fp_rate": 0.0
    }
   },
+  "dfine_s_v3": {
+   "curves": [
+    {
+     "conf": 0.05,
+     "tp": 3,
+     "fp": 13,
+     "fn": 27,
+     "precision": 0.1875,
+     "recall": 0.1,
+     "f1": 0.1304,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.1,
+     "tp": 2,
+     "fp": 2,
+     "fn": 28,
+     "precision": 0.5,
+     "recall": 0.0667,
+     "f1": 0.1176,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.15,
+     "tp": 1,
+     "fp": 1,
+     "fn": 29,
+     "precision": 0.5,
+     "recall": 0.0333,
+     "f1": 0.0625,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.2,
+     "tp": 1,
+     "fp": 0,
+     "fn": 29,
+     "precision": 1.0,
+     "recall": 0.0333,
+     "f1": 0.0645,
+     "out_of_field_fp_rate": null
+    },
+    {
+     "conf": 0.25,
+     "tp": 0,
+     "fp": 0,
+     "fn": 30,
+     "precision": 0.0,
+     "recall": 0.0,
+     "f1": 0.0,
+     "out_of_field_fp_rate": null
+    },
+    {
+     "conf": 0.3,
+     "tp": 0,
+     "fp": 0,
+     "fn": 30,
+     "precision": 0.0,
+     "recall": 0.0,
+     "f1": 0.0,
+     "out_of_field_fp_rate": null
+    },
+    {
+     "conf": 0.35,
+     "tp": 0,
+     "fp": 0,
+     "fn": 30,
+     "precision": 0.0,
+     "recall": 0.0,
+     "f1": 0.0,
+     "out_of_field_fp_rate": null
+    },
+    {
+     "conf": 0.4,
+     "tp": 0,
+     "fp": 0,
+     "fn": 30,
+     "precision": 0.0,
+     "recall": 0.0,
+     "f1": 0.0,
+     "out_of_field_fp_rate": null
+    },
+    {
+     "conf": 0.5,
+     "tp": 0,
+     "fp": 0,
+     "fn": 30,
+     "precision": 0.0,
+     "recall": 0.0,
+     "f1": 0.0,
+     "out_of_field_fp_rate": null
+    },
+    {
+     "conf": 0.6,
+     "tp": 0,
+     "fp": 0,
+     "fn": 30,
+     "precision": 0.0,
+     "recall": 0.0,
+     "f1": 0.0,
+     "out_of_field_fp_rate": null
+    },
+    {
+     "conf": 0.7,
+     "tp": 0,
+     "fp": 0,
+     "fn": 30,
+     "precision": 0.0,
+     "recall": 0.0,
+     "f1": 0.0,
+     "out_of_field_fp_rate": null
+    }
+   ],
+   "mAP50": 0.1296,
+   "mAP50-95": 0.1134,
+   "fps": 36.6,
+   "resolution": 640,
+   "best_f1": {
+    "conf": 0.05,
+    "tp": 3,
+    "fp": 13,
+    "fn": 27,
+    "precision": 0.1875,
+    "recall": 0.1,
+    "f1": 0.1304,
+    "out_of_field_fp_rate": 0.0
+   }
+  },
   "prod_v8s_p2": {
    "curves": [
     {
@@ -514,6 +642,134 @@
     "precision": 0.8667,
     "recall": 0.4333,
     "f1": 0.5778,
+    "out_of_field_fp_rate": 0.0
+   }
+  },
+  "race_v8sp2_v3": {
+   "curves": [
+    {
+     "conf": 0.05,
+     "tp": 14,
+     "fp": 4,
+     "fn": 16,
+     "precision": 0.7778,
+     "recall": 0.4667,
+     "f1": 0.5833,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.1,
+     "tp": 13,
+     "fp": 1,
+     "fn": 17,
+     "precision": 0.9286,
+     "recall": 0.4333,
+     "f1": 0.5909,
+     "out_of_field_fp_rate": 0.0
+    },
+    {
+     "conf": 0.15,
+     "tp": 11,
+     "fp": 0,
+     "fn": 19,
+     "precision": 1.0,
+     "recall": 0.3667,
+     "f1": 0.5366,
+     "out_of_field_fp_rate": null
+    },
+    {
+     "conf": 0.2,
+     "tp": 11,
+     "fp": 0,
+     "fn": 19,
+     "precision": 1.0,
+     "recall": 0.3667,
+     "f1": 0.5366,
+     "out_of_field_fp_rate": null
+    },
+    {
+     "conf": 0.25,
+     "tp": 10,
+     "fp": 0,
+     "fn": 20,
+     "precision": 1.0,
+     "recall": 0.3333,
+     "f1": 0.5,
+     "out_of_field_fp_rate": null
+    },
+    {
+     "conf": 0.3,
+     "tp": 9,
+     "fp": 0,
+     "fn": 21,
+     "precision": 1.0,
+     "recall": 0.3,
+     "f1": 0.4615,
+     "out_of_field_fp_rate": null
+    },
+    {
+     "conf": 0.35,
+     "tp": 7,
+     "fp": 0,
+     "fn": 23,
+     "precision": 1.0,
+     "recall": 0.2333,
+     "f1": 0.3784,
+     "out_of_field_fp_rate": null
+    },
+    {
+     "conf": 0.4,
+     "tp": 7,
+     "fp": 0,
+     "fn": 23,
+     "precision": 1.0,
+     "recall": 0.2333,
+     "f1": 0.3784,
+     "out_of_field_fp_rate": null
+    },
+    {
+     "conf": 0.5,
+     "tp": 5,
+     "fp": 0,
+     "fn": 25,
+     "precision": 1.0,
+     "recall": 0.1667,
+     "f1": 0.2857,
+     "out_of_field_fp_rate": null
+    },
+    {
+     "conf": 0.6,
+     "tp": 3,
+     "fp": 0,
+     "fn": 27,
+     "precision": 1.0,
+     "recall": 0.1,
+     "f1": 0.1818,
+     "out_of_field_fp_rate": null
+    },
+    {
+     "conf": 0.7,
+     "tp": 0,
+     "fp": 0,
+     "fn": 30,
+     "precision": 0.0,
+     "recall": 0.0,
+     "f1": 0.0,
+     "out_of_field_fp_rate": null
+    }
+   ],
+   "mAP50": 0.5388,
+   "mAP50-95": 0.3537,
+   "fps": 121.5,
+   "resolution": 1280,
+   "best_f1": {
+    "conf": 0.1,
+    "tp": 13,
+    "fp": 1,
+    "fn": 17,
+    "precision": 0.9286,
+    "recall": 0.4333,
+    "f1": 0.5909,
     "out_of_field_fp_rate": 0.0
    }
   },
