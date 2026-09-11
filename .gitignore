@@ -127,3 +127,9 @@ results/f1_matrix/g4_handroi1080.log
 results/f1_matrix/g4_base480.log
 results/f1_matrix/g4_repro015.log
 results/f1_matrix/handroi_diag.log
+results/f1_matrix/s2_*.log
+results/f1_matrix/s2_chunk*/tracks.json
+results/f1_matrix/s2_accept10min/
+results/f1_matrix/_probe_*.jpg
+data/bili_final_test/accept_chunk_*.mp4
+data/bili_final_test/accept_chunk_*.mp4-0*
