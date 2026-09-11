@@ -1,0 +1,10 @@
+# frisbee_merged_v35 — v2 + 119 张 bbox 裁剪负样本（1080P 原图裁剪, 白帽/布堆/记分牌靶向, ZCode 判读确认）
+# 形态学对照实验: v3(整帧)崩校准 → v3.5(裁剪)为 AGENTS.md bbox-level 规则的正确形态
+path: E:/frisbee-detector/data/datasets
+train:
+  - frisbee_merged_v2/images/train
+  - frisbee_merged_v35_negatives/images/train
+val: frisbee_merged_v2/images/val
+test: frisbee_merged_v2/images/test
+nc: 1
+names: [frisbee]
