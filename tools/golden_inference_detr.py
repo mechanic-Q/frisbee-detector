@@ -53,7 +53,10 @@ def run_dfine(imgs, res=640, ckpt_path=None, model_name="dfine_s", cfg_name="con
             r = model(tensor)
         logits = r["pred_logits"][0]
         boxes = r["pred_boxes"][0]
-        scores = logits.sigmoid().squeeze(-1) if logits.dim() == 2 else logits.sigmoid()
+        # logits: (num_queries, num_classes) —— 多类头（obj365 零样本）取逐框最大类分数
+        scores = logits.sigmoid()
+        if scores.dim() > 1:
+            scores = scores.max(dim=-1).values
         h, w = img.shape[:2]
         dets = []
         for b, s in zip(boxes.cpu().numpy(), scores.cpu().numpy()):
