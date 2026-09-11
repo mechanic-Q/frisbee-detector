@@ -1,0 +1,46 @@
+{
+ "c4_dfine_fusion": {
+  "raw": 8886,
+  "stats": {
+   "n_frames": 300,
+   "n_tracking": 82,
+   "n_predicting": 0,
+   "n_gated": 218,
+   "n_rejected_speed": 0,
+   "n_lost": 0,
+   "n_searching": 0,
+   "n_tracks": 1,
+   "longest_track_frames": 19,
+   "field_rejected": 0,
+   "details": {
+    "fps": 25.0,
+    "width": 1920.0,
+    "height": 1080.0
+   }
+  },
+  "longest": 19,
+  "runtime_s": 11.1
+ },
+ "c5_racev8_fusion": {
+  "raw": 514,
+  "stats": {
+   "n_frames": 300,
+   "n_tracking": 63,
+   "n_predicting": 23,
+   "n_gated": 208,
+   "n_rejected_speed": 0,
+   "n_lost": 2,
+   "n_searching": 6,
+   "n_tracks": 1,
+   "longest_track_frames": 9,
+   "field_rejected": 0,
+   "details": {
+    "fps": 25.0,
+    "width": 1920.0,
+    "height": 1080.0
+   }
+  },
+  "longest": 9,
+  "runtime_s": 4.7
+ }
+}

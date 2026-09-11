@@ -106,3 +106,18 @@ results/synth_preview/*
 /data/golden_set_100/sheets/*.jpg
 /data/hardneg_v3/sheets/*.jpg
 /graphify-out/
+
+# 训练/队列瞬态产物（results 里的 summary json 已入库，原始 log/ckpt 不进）
+data/bili_final_test/*.log
+data/bili_final_test/.lane*_done
+data/bili_final_test/dfine_out/
+data/bili_final_test/dfine_v3_out/
+data/bili_final_test/rfdetr_out/
+data/bili_final_test/pipeline_e2e*/
+data/bili_final_test/*.csv
+results/f1_matrix/g4_overlay_full.mp4
+results/race_v3/
+results/race_v35/logs/
+results/race_v35/markers/
+results/golden_inference/dfine_s_v3.json
+results/golden_inference/race_v8sp2_v3.json
