@@ -45,6 +45,7 @@ def run(args, stream=None) -> int:
 
     frames: dict[str, list] = {}
     disc_frames: dict[str, dict] = {}
+    disc_seq: list[tuple[int, dict | None]] = []  # (frame_idx, d_det) 原始序列，供融合层用
     if getattr(args, "disc_weights", None):
         # 双模型路径：球员 + 飞盘联合跟踪（事件统计的前提，见 docs/2026-09-09-engine-validation.md）
         from .tracking import iter_player_and_disc_tracks
@@ -62,6 +63,9 @@ def run(args, stream=None) -> int:
             frames[str(idx)] = p_dets
             if d_det is not None:
                 disc_frames[str(idx)] = d_det
+                disc_seq.append((idx, d_det))
+            else:
+                disc_seq.append((idx, None))
             if idx % PROGRESS_EVERY == 0:
                 protocol.emit(protocol.progress(idx, total), stream)
     else:
@@ -81,6 +85,54 @@ def run(args, stream=None) -> int:
     protocol.emit(protocol.progress(total, total), stream)
     if disc_frames:
         protocol.emit(protocol.log(f"disc: {len(disc_frames)}/{len(frames)} frames with detection"), stream)
+
+    # F1 多维融合（默认关）：对盘检测序列做帧间关联+马氏门控+速度拒绝，重写 disc_frames。
+    if getattr(args, "disc_fusion", False) and disc_seq:
+        from .disc_fusion import fuse_disc_detections
+
+        proj = None
+        if getattr(args, "calibration", None):
+            try:
+                from utils.homography import load_calibration, pixel_to_world
+
+                _calib = load_calibration(args.calibration)
+                _m = _calib["matrix"]
+                proj = lambda cx, cy: pixel_to_world(_m, cx, cy)  # noqa: E731
+            except Exception as e:  # noqa: BLE001
+                protocol.emit(protocol.log(f"disc-fusion: calibration ignored ({e})"), stream)
+
+        # 还原成逐帧序列（含空帧）
+        seq: list[list[dict]] = [[] for _ in disc_seq]
+        for k, (idx, d) in enumerate(disc_seq):
+            if d is not None:
+                seq[k] = [{"bbox": list(d["bbox"]), "conf": float(d.get("conf", 0.0))}]
+        fused, fstats = fuse_disc_detections(
+            seq, fps=info["fps"], world_projector=proj,
+            width=info["width"], height=info["height"],
+        )
+        new_disc: dict[str, dict] = {}
+        for (idx, _orig), f in zip(disc_seq, fused):
+            if f.status in ("tracking", "predicting") and f.bbox is not None:
+                entry = {
+                    "bbox": [round(v, 1) for v in f.bbox],
+                    "conf": round(f.conf, 4),
+                    "cx": round(f.cx, 1),
+                    "cy": round(f.cy, 1),
+                    "status": f.status,
+                }
+                if f.d2 is not None:
+                    entry["d2"] = f.d2
+                if f.speed_ms is not None:
+                    entry["speed_ms"] = f.speed_ms
+                if f.world_xy is not None:
+                    entry["world_xy"] = [round(f.world_xy[0], 2), round(f.world_xy[1], 2)]
+                new_disc[str(idx)] = entry
+        protocol.emit(protocol.log(
+            f"disc-fusion: tracking={fstats.n_tracking} predicting={fstats.n_predicting} "
+            f"gated={fstats.n_gated} rejected_speed={fstats.n_rejected_speed} "
+            f"lost={fstats.n_lost} longest_track={fstats.longest_track_frames}f "
+            f"({len(disc_frames)} -> {len(new_disc)} frames)"), stream)
+        disc_frames = new_disc
 
     if args.team_from_cls:
         from .team import apply_team_from_cls
@@ -202,6 +254,8 @@ def main(argv=None) -> int:
     parser.add_argument("--disc-weights", default=None,
                         help="飞盘检测权重（提供则启用双模型联合跟踪 + 事件统计）")
     parser.add_argument("--disc-conf", type=float, default=0.35, help="飞盘检测置信度阈值")
+    parser.add_argument("--disc-fusion", action="store_true",
+                        help="F1 多维融合：盘检测帧间关联+马氏门控+速度拒绝（默认关）")
     parser.add_argument("--calibration", default=None,
                         help="场地标定 json：场内过滤升级为多边形过滤；事件统计需要")
     parser.add_argument("--no-field-filter", action="store_true",
