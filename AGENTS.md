@@ -55,6 +55,13 @@ python tools/gpu_run.py gui-analysis python -m frisbee_analyzer.pipeline ^
   --weights E:/frisbee-detector/yolo26x.pt ^
   --output-dir E:/frisbee-detector/runs/gui_analysis/<stem>
 # artifact: runs/gui_analysis/<stem>/tracks.json  {video,fps,frames,team_overrides}
+
+# 盘轨迹 + 事件统计（默认关，显式开启）：
+#   --disc-weights <pt> --disc-conf 0.2   双模型球员/盘联合跟踪
+#   --disc-fusion                         盘轨迹 Kalman 融合（tracking/predicting/gated/lost 五状态）
+#   --auto-calibrate                      段内自动标定（内点率 0.85 门）
+#   --calibration configs/homography/<stem>.json   事件统计必需（配合 --disc-weights）
+#   --no-field-filter                     关场内过滤（自动标定/标定诊断时用）
 ```
 Zero-shot COCO person
 weights (yolo26x) are the v0 placeholder — swap in player/referee finetuned weights via
@@ -66,7 +73,10 @@ tracks sampled between team-sampling frames stay `team_id: null`.
 ```
 gui/              → PySide6 桌面端（Windows 原生；worker 经 QProcess 原生启动，JSON-lines 协议）
 frisbee_analyzer/ → pipeline.py (worker CLI) + protocol.py (消息协议) + tracking.py (BoT-SORT)
-                    + team.py (SigLIP+UMAP+KMeans 分队) + events.py (事件引擎骨架，Phase 3 接入)
+                    + team.py (SigLIP+UMAP+KMeans 分队) + events.py (事件状态机：持盘/交换/攻转/得分/pull，7 事件类型)
+                    + events_runner.py (标定→单应映射→喂引擎适配层 + 端区持盘得分候选规则)
+                    + disc_fusion.py (盘轨迹 Kalman 融合：评分关联+马氏门控+断轨续接，--disc-fusion)
+                    + segment_calib.py (段内自动标定 players-extent DLT，--auto-calibrate) + filters.py (场内过滤)
 configs/          → paths.py (RESEARCH_ROOT, PROJECT_ROOT), models.py (DEFAULT_MODEL)
 utils/            → dataset.py (YAML gen, split), io.py (safe copy/write)
 tools/            → data conversion & prep scripts (auto_label, merge, extract_frames)
