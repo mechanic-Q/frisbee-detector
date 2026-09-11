@@ -30,6 +30,7 @@ YOLO_MODELS = {
     "ctrl_v8s_p2":  ("ultra", ROOT / "runs/detect/bili_ctrl_v8sp2/weights/best.pt", 1280),
     "prod_v8s_p2_640": ("ultra", ROOT / "runs/detect/bili_prod_v8sp2/weights/best.pt", 640),
     "race_v8sp2_v3": ("ultra", ROOT / "runs/detect/race_v8sp2_v3/weights/best.pt", 1280),
+    "race_v8sp2_v35": ("ultra", ROOT / "runs/detect/race_v8sp2_v35/weights/best.pt", 1280),
 }
 
 
