@@ -1,0 +1,14 @@
+[
+ {
+  "type": "score",
+  "candidate": true,
+  "frame": 1000,
+  "t_sec": 33.33,
+  "end_frame": 1016,
+  "endzone": "right",
+  "carry_frames": 253,
+  "detail": "endzone carry: 9 slow-carry segments in right EZ, total 253f — review for score",
+  "end_t_sec": 53.47,
+  "segments": 9
+ }
+]
