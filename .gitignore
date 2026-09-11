@@ -121,3 +121,9 @@ results/race_v35/logs/
 results/race_v35/markers/
 results/golden_inference/dfine_s_v3.json
 results/golden_inference/race_v8sp2_v3.json
+results/f1_matrix/g4_handroi*_overlay.mp4
+results/f1_matrix/g4_handroi480.log
+results/f1_matrix/g4_handroi1080.log
+results/f1_matrix/g4_base480.log
+results/f1_matrix/g4_repro015.log
+results/f1_matrix/handroi_diag.log

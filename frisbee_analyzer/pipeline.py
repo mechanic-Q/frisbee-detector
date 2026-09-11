@@ -111,6 +111,8 @@ def run(args, stream=None) -> int:
     protocol.emit(protocol.progress(total, total), stream)
     if disc_frames:
         protocol.emit(protocol.log(f"disc: {len(disc_frames)}/{len(frames)} frames with detection"), stream)
+    if not disc_seq and (getattr(args, "disc_fusion", False) or getattr(args, "hand_roi", False)):
+        protocol.emit(protocol.log("warning: --disc-fusion/--hand-roi need --disc-weights（未提供，跳过盘通道）"), stream)
 
     # F1 多维融合（默认关）：对盘检测序列做帧间关联+马氏门控+速度拒绝，重写 disc_frames。
     if getattr(args, "disc_fusion", False) and disc_seq:
