@@ -21,6 +21,8 @@ import sys
 import traceback
 from pathlib import Path
 
+import numpy as np
+
 from . import protocol
 from .tracking import WorkerCancelled, iter_player_tracks, probe_video
 
@@ -45,6 +47,7 @@ def run(args, stream=None) -> int:
 
     frames: dict[str, list] = {}
     disc_frames: dict[str, dict] = {}
+    disc_seq: list[tuple[int, dict | None]] = []  # (frame_idx, d_det) 原始序列，供融合层用
     if getattr(args, "disc_weights", None):
         # 双模型路径：球员 + 飞盘联合跟踪（事件统计的前提，见 docs/2026-09-09-engine-validation.md）
         from .tracking import iter_player_and_disc_tracks
@@ -62,6 +65,9 @@ def run(args, stream=None) -> int:
             frames[str(idx)] = p_dets
             if d_det is not None:
                 disc_frames[str(idx)] = d_det
+                disc_seq.append((idx, d_det))
+            else:
+                disc_seq.append((idx, None))
             if idx % PROGRESS_EVERY == 0:
                 protocol.emit(protocol.progress(idx, total), stream)
     else:
@@ -81,6 +87,54 @@ def run(args, stream=None) -> int:
     protocol.emit(protocol.progress(total, total), stream)
     if disc_frames:
         protocol.emit(protocol.log(f"disc: {len(disc_frames)}/{len(frames)} frames with detection"), stream)
+
+    # F1 多维融合（默认关）：对盘检测序列做帧间关联+马氏门控+速度拒绝，重写 disc_frames。
+    if getattr(args, "disc_fusion", False) and disc_seq:
+        from .disc_fusion import fuse_disc_detections
+
+        proj = None
+        if getattr(args, "calibration", None):
+            try:
+                from utils.homography import load_calibration, pixel_to_world
+
+                _calib = load_calibration(args.calibration)
+                _m = _calib["matrix"]
+                proj = lambda cx, cy: pixel_to_world(_m, cx, cy)  # noqa: E731
+            except Exception as e:  # noqa: BLE001
+                protocol.emit(protocol.log(f"disc-fusion: calibration ignored ({e})"), stream)
+
+        # 还原成逐帧序列（含空帧）
+        seq: list[list[dict]] = [[] for _ in disc_seq]
+        for k, (idx, d) in enumerate(disc_seq):
+            if d is not None:
+                seq[k] = [{"bbox": list(d["bbox"]), "conf": float(d.get("conf", 0.0))}]
+        fused, fstats = fuse_disc_detections(
+            seq, fps=info["fps"], world_projector=proj,
+            width=info["width"], height=info["height"],
+        )
+        new_disc: dict[str, dict] = {}
+        for (idx, _orig), f in zip(disc_seq, fused):
+            if f.status in ("tracking", "predicting") and f.bbox is not None:
+                entry = {
+                    "bbox": [round(v, 1) for v in f.bbox],
+                    "conf": round(f.conf, 4),
+                    "cx": round(f.cx, 1),
+                    "cy": round(f.cy, 1),
+                    "status": f.status,
+                }
+                if f.d2 is not None:
+                    entry["d2"] = f.d2
+                if f.speed_ms is not None:
+                    entry["speed_ms"] = f.speed_ms
+                if f.world_xy is not None:
+                    entry["world_xy"] = [round(f.world_xy[0], 2), round(f.world_xy[1], 2)]
+                new_disc[str(idx)] = entry
+        protocol.emit(protocol.log(
+            f"disc-fusion: tracking={fstats.n_tracking} predicting={fstats.n_predicting} "
+            f"gated={fstats.n_gated} rejected_speed={fstats.n_rejected_speed} "
+            f"lost={fstats.n_lost} longest_track={fstats.longest_track_frames}f "
+            f"({len(disc_frames)} -> {len(new_disc)} frames)"), stream)
+        disc_frames = new_disc
 
     if args.team_from_cls:
         from .team import apply_team_from_cls
@@ -110,6 +164,29 @@ def run(args, stream=None) -> int:
             matrix, polygon = calib["matrix"], FIELD_POLYGON_M
         except Exception as e:  # noqa: BLE001 —— 标定读取失败则退回启发式
             protocol.emit(protocol.log(f"field filter: calibration ignored ({e})"), stream)
+
+    # F1: 段内自动标定（--auto-calibrate，默认关）——用本次 run 的未过滤脚点云
+    # 现场标定，消除"标定文件与素材时段错位"（§13.2/§13.9 三次实证）。在过滤前执行，
+    # 标定 json 落输出目录；若 --calibration 同时给出，段内标定优先（时段匹配）并记录覆盖。
+    if getattr(args, "auto_calibrate", False):
+        from .segment_calib import auto_calibrate_segment
+
+        calib_doc, creport = auto_calibrate_segment(frames, info["width"], info["height"])
+        out_dir_ac = Path(args.output_dir) if args.output_dir else Path("runs/gui_analysis") / Path(video).stem
+        out_dir_ac.mkdir(parents=True, exist_ok=True)
+        if calib_doc is not None:
+            calib_path = out_dir_ac / "segment_calib.json"
+            calib_path.write_text(json.dumps(calib_doc, ensure_ascii=False, indent=1), encoding="utf-8")
+            matrix, polygon = np.asarray(calib_doc["matrix"], dtype=np.float64), FIELD_POLYGON_M
+            protocol.emit(protocol.log(
+                f"auto-calibrate: PASS inlier={creport['optimized_inlier_ratio']} "
+                f"points={creport['points']} -> {calib_path.name}"
+                + (" (overrides --calibration)" if getattr(args, "calibration", None) else "")), stream)
+        else:
+            protocol.emit(protocol.log(
+                f"auto-calibrate: FAIL ({creport.get('reason')}) — 回退"
+                + ("--calibration" if getattr(args, "calibration", None) else "启发式过滤")), stream)
+
     if getattr(args, "no_field_filter", False):
         protocol.emit(protocol.log("field filter: DISABLED (--no-field-filter, raw dets saved)"), stream)
     else:
@@ -202,6 +279,11 @@ def main(argv=None) -> int:
     parser.add_argument("--disc-weights", default=None,
                         help="飞盘检测权重（提供则启用双模型联合跟踪 + 事件统计）")
     parser.add_argument("--disc-conf", type=float, default=0.35, help="飞盘检测置信度阈值")
+    parser.add_argument("--disc-fusion", action="store_true",
+                        help="F1 多维融合：盘检测帧间关联+马氏门控+速度拒绝（默认关）")
+    parser.add_argument("--auto-calibrate", action="store_true",
+                        help="F1 段内自动标定：用本次 run 的球员脚点云现场标定（默认关；"
+                             "给出时优先于 --calibration，过 0.85 内点率门才生效）")
     parser.add_argument("--calibration", default=None,
                         help="场地标定 json：场内过滤升级为多边形过滤；事件统计需要")
     parser.add_argument("--no-field-filter", action="store_true",

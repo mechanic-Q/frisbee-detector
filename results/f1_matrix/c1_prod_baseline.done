@@ -1,0 +1,14 @@
+{
+ "cell": "c1_prod_baseline",
+ "n_disc_frames": 0,
+ "n_player_frames": 300,
+ "status_dist": {},
+ "longest_contiguous_frames": 0,
+ "longest_contiguous_s": 0.0,
+ "field_in": 0,
+ "field_out": 0,
+ "field_out_rate": 0.0,
+ "speed_ms_median": null,
+ "runtime_s": 20.5,
+ "max_frames": 300
+}

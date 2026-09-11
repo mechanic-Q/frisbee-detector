@@ -1,0 +1,35 @@
+{
+ "c2_shadow_bare_segcal": {
+  "cell": "c2_shadow_bare_segcal",
+  "n_disc_frames": 198,
+  "n_player_frames": 300,
+  "status_dist": {
+   "raw": 198
+  },
+  "longest_contiguous_frames": 0,
+  "longest_contiguous_s": 0.0,
+  "field_in": 23,
+  "field_out": 175,
+  "field_out_rate": 0.884,
+  "speed_ms_median": null,
+  "runtime_s": 37.3,
+  "max_frames": 300
+ },
+ "c3_shadow_fusion_segcal": {
+  "cell": "c3_shadow_fusion_segcal",
+  "n_disc_frames": 109,
+  "n_player_frames": 300,
+  "status_dist": {
+   "tracking": 47,
+   "predicting": 62
+  },
+  "longest_contiguous_frames": 10,
+  "longest_contiguous_s": 0.4,
+  "field_in": 1,
+  "field_out": 108,
+  "field_out_rate": 0.991,
+  "speed_ms_median": 0.0,
+  "runtime_s": 37.2,
+  "max_frames": 300
+ }
+}

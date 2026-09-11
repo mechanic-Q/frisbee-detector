@@ -1,16 +1,24 @@
 {
- "engine_events": 15,
+ "engine_events": 1,
  "gt_events": 15,
  "tolerance_sec": 90.0,
- "matched": 15,
+ "matched": 1,
  "engine_precision": 1.0,
- "engine_recall": 1.0,
- "f1": 1.0,
+ "engine_recall": 0.067,
+ "f1": 0.125,
  "matched_detail": [
   {
    "engine": {
     "type": "score",
-    "t_sec": 21.3
+    "candidate": true,
+    "frame": 1000,
+    "t_sec": 33.33,
+    "end_frame": 1016,
+    "endzone": "right",
+    "carry_frames": 253,
+    "detail": "endzone carry: 9 slow-carry segments in right EZ, total 253f — review for score",
+    "end_t_sec": 53.47,
+    "segments": 9
    },
    "gt": {
     "type": "score",
@@ -23,250 +31,113 @@
     ],
     "evidence": "那么场上第一分由护安拿到33439位进对"
    },
-   "dt_sec": 20.0
-  },
-  {
-   "engine": {
-    "type": "turnover",
-    "t_sec": 23.4
-   },
-   "gt": {
-    "type": "turnover",
-    "t_sec": 3.4,
-    "team": "上海沪蛙",
-    "votes": 2,
-    "sources": [
-     "asr",
-     "subtitle"
-    ],
-    "evidence": "一个进攻但是打的量太高了哇"
-   },
-   "dt_sec": 20.0
-  },
-  {
-   "engine": {
-    "type": "score",
-    "t_sec": 138.0
-   },
-   "gt": {
-    "type": "score",
-    "t_sec": 118.0,
-    "team": "上海沪蛙",
-    "votes": 1,
-    "sources": [
-     "ocr"
-    ],
-    "evidence": "记分牌 0:0->0:1"
-   },
-   "dt_sec": 20.0
-  },
-  {
-   "engine": {
-    "type": "score",
-    "t_sec": 341
-   },
-   "gt": {
-    "type": "score",
-    "t_sec": 321,
-    "team": "北京大哥",
-    "votes": 1,
-    "sources": [
-     "asr"
-    ],
-    "evidence": "我的，人华队，在第一个回合是拿到。了 break 那大哥"
-   },
-   "dt_sec": 20
-  },
-  {
-   "engine": {
-    "type": "score",
-    "t_sec": 484.0
-   },
-   "gt": {
-    "type": "score",
-    "t_sec": 464.0,
-    "team": "北京大哥",
-    "votes": 1,
-    "sources": [
-     "ocr"
-    ],
-    "evidence": "记分牌 0:1->1:1"
-   },
-   "dt_sec": 20.0
-  },
-  {
-   "engine": {
-    "type": "score",
-    "t_sec": 664.0
-   },
-   "gt": {
-    "type": "score",
-    "t_sec": 644.0,
-    "team": "上海沪蛙",
-    "votes": 1,
-    "sources": [
-     "ocr"
-    ],
-    "evidence": "记分牌 1:1->1:2"
-   },
-   "dt_sec": 20.0
-  },
-  {
-   "engine": {
-    "type": "score",
-    "t_sec": 802.0
-   },
-   "gt": {
-    "type": "score",
-    "t_sec": 782.0,
-    "team": "上海沪蛙",
-    "votes": 1,
-    "sources": [
-     "ocr"
-    ],
-    "evidence": "记分牌 1:2->1:3"
-   },
-   "dt_sec": 20.0
-  },
-  {
-   "engine": {
-    "type": "score",
-    "t_sec": 998.0
-   },
-   "gt": {
-    "type": "score",
-    "t_sec": 978.0,
-    "team": "北京大哥",
-    "votes": 1,
-    "sources": [
-     "ocr"
-    ],
-    "evidence": "记分牌 1:3->2:3"
-   },
-   "dt_sec": 20.0
-  },
-  {
-   "engine": {
-    "type": "score",
-    "t_sec": 1182.0
-   },
-   "gt": {
-    "type": "score",
-    "t_sec": 1162.0,
-    "team": "上海沪蛙",
-    "votes": 1,
-    "sources": [
-     "ocr"
-    ],
-    "evidence": "记分牌 2:3->2:4"
-   },
-   "dt_sec": 20.0
-  },
-  {
-   "engine": {
-    "type": "score",
-    "t_sec": 1290.0
-   },
-   "gt": {
-    "type": "score",
-    "t_sec": 1270.0,
-    "team": "北京大哥",
-    "votes": 1,
-    "sources": [
-     "ocr"
-    ],
-    "evidence": "记分牌 2:4->3:4"
-   },
-   "dt_sec": 20.0
-  },
-  {
-   "engine": {
-    "type": "score",
-    "t_sec": 1492.0
-   },
-   "gt": {
-    "type": "score",
-    "t_sec": 1472.0,
-    "team": "上海沪蛙",
-    "votes": 1,
-    "sources": [
-     "ocr"
-    ],
-    "evidence": "记分牌 3:4->3:5"
-   },
-   "dt_sec": 20.0
-  },
-  {
-   "engine": {
-    "type": "score",
-    "t_sec": 1586.0
-   },
-   "gt": {
-    "type": "score",
-    "t_sec": 1566.0,
-    "team": "北京大哥",
-    "votes": 1,
-    "sources": [
-     "ocr"
-    ],
-    "evidence": "记分牌 3:5->4:5"
-   },
-   "dt_sec": 20.0
-  },
-  {
-   "engine": {
-    "type": "score",
-    "t_sec": 1950.0
-   },
-   "gt": {
-    "type": "score",
-    "t_sec": 1930.0,
-    "team": "上海沪蛙",
-    "votes": 1,
-    "sources": [
-     "ocr"
-    ],
-    "evidence": "记分牌 4:5->4:6"
-   },
-   "dt_sec": 20.0
-  },
-  {
-   "engine": {
-    "type": "score",
-    "t_sec": 2324.0
-   },
-   "gt": {
-    "type": "score",
-    "t_sec": 2304.0,
-    "team": "北京大哥",
-    "votes": 1,
-    "sources": [
-     "ocr"
-    ],
-    "evidence": "记分牌 4:6->5:6"
-   },
-   "dt_sec": 20.0
-  },
-  {
-   "engine": {
-    "type": "score",
-    "t_sec": 2734.0
-   },
-   "gt": {
-    "type": "score",
-    "t_sec": 2714.0,
-    "team": "上海沪蛙",
-    "votes": 1,
-    "sources": [
-     "ocr"
-    ],
-    "evidence": "记分牌 5:6->5:7"
-   },
-   "dt_sec": 20.0
+   "dt_sec": 32.0
   }
  ],
  "engine_only_count": 0,
- "gt_only_count": 0,
+ "gt_only_count": 14,
  "engine_only": [],
- "gt_only": []
+ "gt_only": [
+  {
+   "type": "turnover",
+   "t_sec": 3.4,
+   "team": "上海沪蛙",
+   "votes": 2,
+   "sources": [
+    "asr",
+    "subtitle"
+   ],
+   "evidence": "一个进攻但是打的量太高了哇"
+  },
+  {
+   "type": "score",
+   "t_sec": 118.0,
+   "team": "上海沪蛙",
+   "votes": 1,
+   "sources": [
+    "ocr"
+   ],
+   "evidence": "记分牌 0:0->0:1"
+  },
+  {
+   "type": "score",
+   "t_sec": 321,
+   "team": "北京大哥",
+   "votes": 1,
+   "sources": [
+    "asr"
+   ],
+   "evidence": "我的，人华队，在第一个回合是拿到。了 break 那大哥"
+  },
+  {
+   "type": "score",
+   "t_sec": 464.0,
+   "team": "北京大哥",
+   "votes": 1,
+   "sources": [
+    "ocr"
+   ],
+   "evidence": "记分牌 0:1->1:1"
+  },
+  {
+   "type": "score",
+   "t_sec": 644.0,
+   "team": "上海沪蛙",
+   "votes": 1,
+   "sources": [
+    "ocr"
+   ],
+   "evidence": "记分牌 1:1->1:2"
+  },
+  {
+   "type": "score",
+   "t_sec": 782.0,
+   "team": "上海沪蛙",
+   "votes": 1,
+   "sources": [
+    "ocr"
+   ],
+   "evidence": "记分牌 1:2->1:3"
+  },
+  {
+   "type": "score",
+   "t_sec": 978.0,
+   "team": "北京大哥",
+   "votes": 1,
+   "sources": [
+    "ocr"
+   ],
+   "evidence": "记分牌 1:3->2:3"
+  },
+  {
+   "type": "score",
+   "t_sec": 1162.0,
+   "team": "上海沪蛙",
+   "votes": 1,
+   "sources": [
+    "ocr"
+   ],
+   "evidence": "记分牌 2:3->2:4"
+  },
+  {
+   "type": "score",
+   "t_sec": 1270.0,
+   "team": "北京大哥",
+   "votes": 1,
+   "sources": [
+    "ocr"
+   ],
+   "evidence": "记分牌 2:4->3:4"
+  },
+  {
+   "type": "score",
+   "t_sec": 1472.0,
+   "team": "上海沪蛙",
+   "votes": 1,
+   "sources": [
+    "ocr"
+   ],
+   "evidence": "记分牌 3:4->3:5"
+  }
+ ]
 }

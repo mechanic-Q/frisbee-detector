@@ -101,3 +101,8 @@ results/synth_preview/*
 /team_color_check.json
 /results/speed_probe_win_run/
 /results/worktree_artifacts/**/*.mp3
+
+# 金标准判读拼图（seed=42 可由 golden_sheet_build.py 确定性重建，只留 manifest）
+/data/golden_set_100/sheets/*.jpg
+/data/hardneg_v3/sheets/*.jpg
+/graphify-out/
