@@ -44,6 +44,17 @@ CELLS = {
                  "--disc-weights", str(SHADOW), "--disc-conf", "0.15",
                  "--disc-fusion", "--calibration", str(CALIB)],
     },
+    # ②s/③s: 段内自动标定版（内点率 0.975）
+    "c2_shadow_bare_segcal": {
+        "args": ["--video", str(VIDEO), "--weights", "yolo26x.pt",
+                 "--disc-weights", str(SHADOW), "--disc-conf", "0.15",
+                 "--calibration", str(ROOT / "results/f1_matrix/c0_raw_for_calib/auto_calib.json")],
+    },
+    "c3_shadow_fusion_segcal": {
+        "args": ["--video", str(VIDEO), "--weights", "yolo26x.pt",
+                 "--disc-weights", str(SHADOW), "--disc-conf", "0.15",
+                 "--disc-fusion", "--calibration", str(ROOT / "results/f1_matrix/c0_raw_for_calib/auto_calib.json")],
+    },
 }
 
 

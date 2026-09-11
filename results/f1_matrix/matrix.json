@@ -1,20 +1,6 @@
 {
- "c1_prod_baseline": {
-  "cell": "c1_prod_baseline",
-  "n_disc_frames": 0,
-  "n_player_frames": 300,
-  "status_dist": {},
-  "longest_contiguous_frames": 0,
-  "longest_contiguous_s": 0.0,
-  "field_in": 0,
-  "field_out": 0,
-  "field_out_rate": 0.0,
-  "speed_ms_median": null,
-  "runtime_s": 20.5,
-  "max_frames": 300
- },
- "c2_shadow_bare": {
-  "cell": "c2_shadow_bare",
+ "c2_shadow_bare_segcal": {
+  "cell": "c2_shadow_bare_segcal",
   "n_disc_frames": 198,
   "n_player_frames": 300,
   "status_dist": {
@@ -26,24 +12,24 @@
   "field_out": 175,
   "field_out_rate": 0.884,
   "speed_ms_median": null,
-  "runtime_s": 25.3,
+  "runtime_s": 37.3,
   "max_frames": 300
  },
- "c3_shadow_fusion": {
-  "cell": "c3_shadow_fusion",
-  "n_disc_frames": 104,
+ "c3_shadow_fusion_segcal": {
+  "cell": "c3_shadow_fusion_segcal",
+  "n_disc_frames": 109,
   "n_player_frames": 300,
   "status_dist": {
-   "tracking": 49,
-   "predicting": 55
+   "tracking": 47,
+   "predicting": 62
   },
   "longest_contiguous_frames": 10,
   "longest_contiguous_s": 0.4,
   "field_in": 1,
-  "field_out": 103,
-  "field_out_rate": 0.99,
-  "speed_ms_median": 0.4,
-  "runtime_s": 25.3,
+  "field_out": 108,
+  "field_out_rate": 0.991,
+  "speed_ms_median": 0.0,
+  "runtime_s": 37.2,
   "max_frames": 300
  }
 }
