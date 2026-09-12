@@ -145,3 +145,5 @@ results/f1_matrix/phaseA_chunk*.log
 results/f1_matrix/phaseA_chunk*/tracks.json
 results/f1_matrix/phaseA_chunk1/tracks.json
 results/f1_matrix/wfdf_smoke.log
+results/wfdf_eval_*.log
+results/wfdf_eval/*/tracks.json

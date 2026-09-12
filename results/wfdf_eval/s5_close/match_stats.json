@@ -1,0 +1,145 @@
+{
+ "provenance": {
+  "video": "E:/frisbee-detector/data/raw_unseen/wfdf_s5_close.mp4",
+  "fps": 25.0,
+  "frames": 3000,
+  "disc_frame_coverage": 0.303,
+  "event_review": {},
+  "caveats": [
+   "world-coord noise ~7m near-field (ground-plane parallax + players-extent EZ error, §13.13)",
+   "low disc coverage biases turnover/possession stats low (holes hit num & denom)",
+   "carry-candidates excluded from possession share (contain ground-disc artifacts)"
+  ]
+ },
+ "1_flight_distance": {
+  "n_segments": 50,
+  "longest_m": 23.9,
+  "top10": [
+   {
+    "length_m": 23.9,
+    "duration_s": 0.68,
+    "speed_ms": 35.2,
+    "t_start_s": 4.92
+   },
+   {
+    "length_m": 18.1,
+    "duration_s": 0.08,
+    "speed_ms": 226.8,
+    "t_start_s": 90.72
+   },
+   {
+    "length_m": 10.5,
+    "duration_s": 0.16,
+    "speed_ms": 65.7,
+    "t_start_s": 31.64
+   },
+   {
+    "length_m": 9.7,
+    "duration_s": 0.12,
+    "speed_ms": 81.2,
+    "t_start_s": 113.2
+   },
+   {
+    "length_m": 8.1,
+    "duration_s": 0.12,
+    "speed_ms": 67.1,
+    "t_start_s": 109.16
+   },
+   {
+    "length_m": 8.0,
+    "duration_s": 0.12,
+    "speed_ms": 66.5,
+    "t_start_s": 46.76
+   },
+   {
+    "length_m": 7.2,
+    "duration_s": 0.08,
+    "speed_ms": 89.6,
+    "t_start_s": 46.0
+   },
+   {
+    "length_m": 6.3,
+    "duration_s": 0.12,
+    "speed_ms": 52.8,
+    "t_start_s": 64.96
+   },
+   {
+    "length_m": 5.0,
+    "duration_s": 0.08,
+    "speed_ms": 62.6,
+    "t_start_s": 53.0
+   },
+   {
+    "length_m": 5.0,
+    "duration_s": 0.08,
+    "speed_ms": 62.9,
+    "t_start_s": 53.8
+   }
+  ],
+  "note": "tracking-only; short(<3f) segments dropped; ~7m near-field noise"
+ },
+ "2_turnover_rates": {
+  "possessions": 0,
+  "turnovers": 0,
+  "passes_same_team": 0,
+  "turnover_per_throw": 0.0,
+  "turnover_per_possession": 0.0,
+  "per_minute": {
+   "turnovers": 0.0,
+   "possessions": 0.0
+  },
+  "note": "candidate events excluded unless review-confirmed; carry-candidates not counted"
+ },
+ "3_possession_share": {
+  "possessions": 0,
+  "scores": 0,
+  "possession_share": {
+   "0": 0.0,
+   "1": 0.0
+  },
+  "note": "candidate events excluded unless review-confirmed; carry-candidates not counted"
+ },
+ "4_heatmaps": {
+  "0": {
+   "samples": 19079,
+   "peak_cell": [
+    26,
+    15
+   ],
+   "peak_world_m": [
+    106.0,
+    22.9
+   ]
+  },
+  "1": {
+   "samples": 625,
+   "peak_cell": [
+    10,
+    18
+   ],
+   "peak_world_m": [
+    42.0,
+    27.4
+   ]
+  }
+ },
+ "5_6_7_player_profiles": {
+  "scorers": {},
+  "scorer_candidates_unconfirmed": [
+   {
+    "track": null,
+    "frame": 15,
+    "evidence": "candidate"
+   },
+   {
+    "track": null,
+    "frame": 322,
+    "evidence": "candidate"
+   }
+  ],
+  "hockey_assists": {},
+  "threat_origins_top": [],
+  "n_threat_chains": 0,
+  "note": "origin positions are possession-start foot coords (world m); organizer = hockey-assist count (xT-lite); first-pusher needs direction binding"
+ }
+}
