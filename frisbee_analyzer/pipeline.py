@@ -310,18 +310,27 @@ def run(args, stream=None) -> int:
         "disc_raw": disc_raw,
     }
 
-    # 事件统计（需飞盘轨迹；无盘则不产生事件——见验证报告）
-    if disc_frames and getattr(args, "calibration", None):
-        try:
-            from .events_runner import compute_events
+    # 事件统计（需飞盘轨迹；无盘则不产生事件——见验证报告）。
+    # 标定来源优先级（§13.16 B / R7 修复）：段内自动标定产物（时段匹配）> --calibration。
+    if disc_frames:
+        calib_for_events = getattr(args, "calibration", None)
+        segcal = out_dir / "segment_calib.json"
+        if segcal.exists():
+            calib_for_events = str(segcal)
+        if calib_for_events:
+            try:
+                from .events_runner import compute_events
 
-            events_doc = compute_events(doc, Path(args.calibration))
-            doc["events"] = events_doc["events"]
-            doc["score"] = events_doc["score"]
-            protocol.emit(protocol.log(
-                f"events: {len(events_doc['events'])} (score={events_doc['score']})"), stream)
-        except Exception as e:  # noqa: BLE001 —— 事件统计失败不拖垮产物落盘
-            protocol.emit(protocol.log(f"events: failed ({type(e).__name__}: {e})"), stream)
+                events_doc = compute_events(doc, Path(calib_for_events))
+                doc["events"] = events_doc["events"]
+                doc["score"] = events_doc["score"]
+                doc["direction_flips"] = events_doc.get("direction_flips", [])
+                doc["team_left"] = events_doc.get("team_left", 0)
+                protocol.emit(protocol.log(
+                    f"events: {len(events_doc['events'])} (score={events_doc['score']}, "
+                    f"calib={Path(calib_for_events).name})"), stream)
+            except Exception as e:  # noqa: BLE001 —— 事件统计失败不拖垮产物落盘
+                protocol.emit(protocol.log(f"events: failed ({type(e).__name__}: {e})"), stream)
 
     tmp_path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
     tmp_path.replace(out_path)  # 原子写：中断不会留下半截 JSON
@@ -348,6 +357,43 @@ def run_team_only(args, stream=None) -> int:
                                 doc.get("width") or 0, doc.get("height") or 0), stream)
     team_colors = assign_teams(frames, video, log=lambda m: protocol.emit(protocol.log(m), stream))
     doc["team_colors"] = team_colors
+    tmp = doc_path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+    tmp.replace(doc_path)
+    protocol.emit(protocol.result(str(doc_path)), stream)
+    return 0
+
+
+def run_events_only(args, stream=None) -> int:
+    """只重算事件统计（CPU 秒级，§13.16 B/R7）：复用已有 tracks.json + 标定。
+
+    标定优先级：--events-calibration 显式给出 > tracks.json 同目录 segment_calib.json。
+    保留既有 event_review / team_overrides（人工复核成果不被清空，R8 前置）。
+    """
+    doc_path = Path(args.events_only)
+    if not doc_path.exists():
+        protocol.emit(protocol.error(f"tracks.json not found: {doc_path}"), stream)
+        return 1
+    doc = json.loads(doc_path.read_text(encoding="utf-8"))
+    if not doc.get("disc_frames"):
+        protocol.emit(protocol.error("tracks.json has no disc_frames — 事件统计需盘轨迹"), stream)
+        return 1
+    calib = getattr(args, "events_calibration", None) or doc_path.parent / "segment_calib.json"
+    if not Path(calib).exists():
+        protocol.emit(protocol.error(f"calibration not found: {calib}"), stream)
+        return 1
+    protocol.emit(protocol.meta(len(doc.get("frames", {})), doc.get("fps") or 30.0,
+                                doc.get("width") or 0, doc.get("height") or 0), stream)
+    from .events_runner import compute_events
+
+    events_doc = compute_events(doc, Path(calib))
+    doc["events"] = events_doc["events"]
+    doc["score"] = events_doc["score"]
+    doc["direction_flips"] = events_doc.get("direction_flips", [])
+    doc["team_left"] = events_doc.get("team_left", 0)
+    protocol.emit(protocol.log(
+        f"events: {len(events_doc['events'])} (score={events_doc['score']}, "
+        f"flips={len(doc['direction_flips'])}, calib={Path(calib).name})"), stream)
     tmp = doc_path.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
     tmp.replace(doc_path)
@@ -408,10 +454,15 @@ def main(argv=None) -> int:
                         help="保存未过滤原始检出（自动标定等用途）")
     parser.add_argument("--team-only", metavar="TRACKS_JSON", default=None,
                         help="跳过跟踪，只对已有 tracks.json 重算分队")
+    parser.add_argument("--events-only", metavar="TRACKS_JSON", default=None,
+                        help="跳过跟踪，只重算事件统计（CPU 秒级；标定取同目录 "
+                             "segment_calib.json 或 --events-calibration）")
+    parser.add_argument("--events-calibration", default=None,
+                        help="--events-only 的显式标定路径（默认同目录 segment_calib.json）")
     args = parser.parse_args(argv)
 
-    if not args.team_only and not args.video:
-        parser.error("--video is required unless --team-only is used")
+    if not args.team_only and not args.video and not args.events_only:
+        parser.error("--video is required unless --team-only/--events-only is used")
 
     if args.hand_roi:
         args.disc_fusion = True  # 手部 ROI 定义在融合态之上，隐含开启
@@ -431,6 +482,8 @@ def main(argv=None) -> int:
     try:
         if args.team_only:
             return run_team_only(args)
+        if args.events_only:
+            return run_events_only(args)
         args.classes = [int(c) for c in str(args.classes).split(",") if c.strip()]
         return run(args)
     except WorkerCancelled as e:

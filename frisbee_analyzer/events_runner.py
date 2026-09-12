@@ -164,16 +164,53 @@ def build_end_zones(field_w: float, field_h: float, ez_depth: float,
     ]
 
 
+def flip_end_zones(end_zones: list) -> None:
+    """USAU 9.B（§13.16 B）：得分后两队攻防方向立即互换（得分方拉盘）。
+
+    就地交换每个 EndZone 的 team_attacking（几何多边形不动，动的是归属）。
+    半场换边（halftime 恢复初始选边）由调用方在 halftime_frame 处重放初始
+    build_end_zones 实现。
+    """
+    if len(end_zones) == 2:
+        end_zones[0].team_attacking, end_zones[1].team_attacking = \
+            end_zones[1].team_attacking, end_zones[0].team_attacking
+
+
+def infer_team_left(confirmed_candidates: list[dict]) -> int | None:
+    """由已确认的端区得分候选反推 team_left（复核闭环 §13.16 B）。
+
+    confirmed_candidates: [{endzone: "left"|"right", team: int}, ...]
+    得分队攻该候选所在端区 → 端区侧即该队的进攻方向。多数票决定 team_left；
+    平票/无证据返回 None（保持默认 0）。
+    """
+    votes = {0: 0, 1: 0}
+    for c in confirmed_candidates:
+        side, team = c.get("endzone"), c.get("team")
+        if side in ("left", "right") and team in (0, 1):
+            votes[team if side == "left" else 1 - team] += 1
+    if votes[0] == votes[1]:
+        return None
+    return 0 if votes[0] > votes[1] else 1
+
+
 def compute_events(doc: dict, calibration_path: Path,
                    config: PossessionConfig | None = None) -> dict:
     """doc = worker 产物（含 frames/disc_frames/fps/team_overrides）。
-    返回 {"events": [...], "score": {team: n}}。"""
+    返回 {"events": [...], "score": {team: n}}。
+
+    攻守方向（§13.16 B，USAU 9.B）：标定 json 可选键 `team_left`（开局 0/1，
+    默认 0）与 `halftime_frame`（半场帧号，恢复初始选边）；每个**计入比分**的
+    状态机得分后两队进攻端区立即互换（candidate 得分不翻转——未确认不计入）。
+    """
     vsize = (doc.get("width"), doc.get("height")) if doc.get("width") else None
     H, (fw, fh), ez = load_calibration(calibration_path, image_size=vsize)
+    calib_raw = json.loads(Path(calibration_path).read_text(encoding="utf-8"))
     fps = float(doc.get("fps") or 30.0)
     frames = doc.get("frames", {})
     disc_frames = doc.get("disc_frames", {})
     overrides = {int(k): v for k, v in (doc.get("team_overrides") or {}).items()}
+    team_left = int(calib_raw.get("team_left", 0))
+    halftime_frame = calib_raw.get("halftime_frame")
 
     team_of: dict[int, int] = {}
     for fr in frames.values():
@@ -183,8 +220,9 @@ def compute_events(doc: dict, calibration_path: Path,
             if t is not None:
                 team_of[tid] = t
 
+    end_zones = build_end_zones(fw, fh, ez, team_left=team_left)
     eng = MatchEventEngine(
-        end_zones=build_end_zones(fw, fh, ez),
+        end_zones=end_zones,
         team_of=team_of,
         config=config or PossessionConfig(),
         fps=fps,
@@ -194,6 +232,7 @@ def compute_events(doc: dict, calibration_path: Path,
     margin = 5.0  # 米：场地外缓冲
     disc_rejected = 0
     last_score_frame: int | None = None  # C0 冷却解锁锚点
+    flips: list[dict] = []               # 方向翻转审计（§13.16 B）
     for fk in sorted(frames, key=int):
         idx = int(fk)
         players = []
@@ -222,9 +261,15 @@ def compute_events(doc: dict, calibration_path: Path,
             # C0（§13.16）：引擎得分后自动 pull 解锁——_score_lock 原本永锁
             # （notify_pull 生产零调用），第一个得分后 TRANSFER/TURNOVER/POSSESSION
             # 全部停发。按冷却窗（默认 10s，防庆祝走动误选举）解锁继续统计。
-            # USAU 9.B：得分后攻防方向翻转，由 Phase B 的 end-zone 翻转层处理。
             if e.type is EventType.SCORE:
                 last_score_frame = idx
+                if not e.candidate:
+                    flips.append({"frame": idx, "detail": "endzones flipped (USAU 9.B, in-engine)"})
+        # 半场恢复初始选边（halftime_frame 越界/缺席则不生效）
+        if (halftime_frame is not None and idx == int(halftime_frame)
+                and [z.team_attacking for z in end_zones] != [team_left, 1 - team_left]):
+            end_zones[0].team_attacking, end_zones[1].team_attacking = team_left, 1 - team_left
+            flips.append({"frame": idx, "detail": "endzones reset (halftime)"})
 
         if (last_score_frame is not None
                 and idx - last_score_frame >= (config or PossessionConfig()).score_cooloff_frames
@@ -243,4 +288,5 @@ def compute_events(doc: dict, calibration_path: Path,
     for cand in detect_endzone_carries(doc, H, fw, fh, ez, fps):
         out_events.append(cand)
     return {"events": out_events, "score": eng.score,
-            "disc_rejected_out_of_field": disc_rejected}
+            "disc_rejected_out_of_field": disc_rejected,
+            "direction_flips": flips, "team_left": team_left}

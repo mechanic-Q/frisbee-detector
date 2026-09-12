@@ -22,8 +22,13 @@ RIGHT_EZ = EndZone(team_attacking=1, polygon=[(82, 0), (100, 0), (100, 37), (82,
 
 
 def make_engine(**cfg) -> MatchEventEngine:
+    # §13.16 B 后引擎会就地翻转 end_zones（USAU 9.B）——EZ 每次新建，
+    # 防止测试间共享可变模块级单例造成状态泄漏。
     return MatchEventEngine(
-        end_zones=[LEFT_EZ, RIGHT_EZ],
+        end_zones=[
+            EndZone(team_attacking=0, polygon=[(0, 0), (18, 0), (18, 37), (0, 37)]),
+            EndZone(team_attacking=1, polygon=[(82, 0), (100, 0), (100, 37), (82, 37)]),
+        ],
         team_of={101: 0, 102: 0, 201: 1, 202: 1},
         config=PossessionConfig(**cfg) if cfg else PossessionConfig(),
     )
@@ -147,13 +152,21 @@ def test_transfer_flicker_is_suppressed():
 
 
 def test_score_counts_accumulate_over_multiple_possessions():
-    """两次得分（pull 解锁后）累计 2:0."""
+    """两次得分（pull 解锁后）累计 2:0。
+
+    §13.16 B（USAU 9.B）：首次得分后方向翻转（team0 转攻右端区），
+    第二次得分须在右端区完成。
+    """
     eng = make_engine()
     players = {f: [player_at(101, 0, 10, 18)] for f in range(0, 80)}
     disc = {f: disc_at(f, 10, 19.3) for f in range(0, 80)}
     feed(eng, range(0, 25), players, disc)
     assert eng.score == {0: 1, 1: 0}
     assert eng.holder is None  # 死球期间不重选持盘人
+    assert eng.ezs[0].team_attacking == 1  # team0 现攻右端区（方向已翻转）
     eng.notify_pull(30)
-    feed(eng, range(40, 65), players, disc)
+    players2 = {f: [player_at(101, 0, 91, 18)] for f in range(40, 80)}
+    disc2 = {f: disc_at(f, 91, 19.3) for f in range(40, 80)}
+    feed(eng, range(40, 65), players2, disc2)
     assert eng.score == {0: 2, 1: 0}
+    assert eng.ezs[0].team_attacking == 0  # 再次翻转回来

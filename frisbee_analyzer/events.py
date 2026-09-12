@@ -293,6 +293,10 @@ class MatchEventEngine:
                     self.score[team] += 1
                     self._emit(Event(EventType.SCORE, self.frame, to_track=p.track_id, team=team,
                                      x=p.x, y=p.y, detail=f"score={dict(self.score)}"))
+                    # USAU 9.B（§13.16 B）：计入比分的得分后两队进攻端区立即互换
+                    if len(self.ezs) == 2:
+                        self.ezs[0].team_attacking, self.ezs[1].team_attacking = \
+                            self.ezs[1].team_attacking, self.ezs[0].team_attacking
                 return
 
     def notify_pull(self, frame: int, x: float = 0.0, y: float = 0.0) -> Event:
