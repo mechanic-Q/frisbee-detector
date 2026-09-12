@@ -1,0 +1,8 @@
+# 小盘过采样微调集（§13.20）：v2 train + 远端小盘(<15px@480)帧 ×3 过采样
+# val/test 沿用 v2（防泄漏：小盘过采样只动 train）
+train:
+  - frisbee_small_v3/images/train
+val: frisbee_merged_v2/images/val
+test: frisbee_merged_v2/images/test
+names:
+  0: frisbee
