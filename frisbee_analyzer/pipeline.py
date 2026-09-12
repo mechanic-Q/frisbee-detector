@@ -49,6 +49,8 @@ def _fused_to_disc_doc(fused) -> dict[str, dict]:
                 entry["world_xy"] = [round(f.world_xy[0], 2), round(f.world_xy[1], 2)]
             if f.source:
                 entry["source"] = f.source
+            if f.holder_track is not None:
+                entry["holder_track"] = f.holder_track
             out[str(idx)] = entry
     return out
 
@@ -70,15 +72,15 @@ def run(args, stream=None) -> int:
     from .team import assign_teams  # 惰性导入，保持 --help 轻量
 
     frames: dict[str, list] = {}
-    disc_frames: dict[str, dict] = {}
-    disc_seq: list[tuple[int, dict | None]] = []  # (frame_idx, d_det) 原始序列，供融合层用
+    disc_seq: list[tuple[int, list[dict]]] = []  # (frame_idx, 盘候选列表) 原始序列
+    disc_raw: dict[str, list] = {}               # 持久化原始候选（§13.16：全链条 CPU 复算）
     fused_cur = None   # 当前最优融合结果（hand-roi/补全可能覆盖）
     seq_cur = None     # 与 fused_cur 对应的逐帧检测序列
     if getattr(args, "disc_weights", None):
         # 双模型路径：球员 + 飞盘联合跟踪（事件统计的前提，见 docs/2026-09-09-engine-validation.md）
         from .tracking import iter_player_and_disc_tracks
 
-        for idx, p_dets, d_det in iter_player_and_disc_tracks(
+        for idx, p_dets, d_dets in iter_player_and_disc_tracks(
             video,
             player_weights=args.weights,
             disc_weights=args.disc_weights,
@@ -87,13 +89,14 @@ def run(args, stream=None) -> int:
             imgsz=args.imgsz,
             max_frames=args.max_frames,
             player_classes=tuple(args.classes),
+            disc_tile_grid=getattr(args, "disc_tile_grid", 0) or 0,
+            disc_tile_trigger=getattr(args, "disc_tile_trigger", None) or "conf<0.5",
+            disc_tile_topk=getattr(args, "disc_tile_topk", None) or 2,
         ):
             frames[str(idx)] = p_dets
-            if d_det is not None:
-                disc_frames[str(idx)] = d_det
-                disc_seq.append((idx, d_det))
-            else:
-                disc_seq.append((idx, None))
+            disc_seq.append((idx, d_dets))
+            if d_dets:
+                disc_raw[str(idx)] = d_dets
             if idx % PROGRESS_EVERY == 0:
                 protocol.emit(protocol.progress(idx, total), stream)
     else:
@@ -111,10 +114,20 @@ def run(args, stream=None) -> int:
             if idx % PROGRESS_EVERY == 0:
                 protocol.emit(protocol.progress(idx, total), stream)
     protocol.emit(protocol.progress(total, total), stream)
-    if disc_frames:
-        protocol.emit(protocol.log(f"disc: {len(disc_frames)}/{len(frames)} frames with detection"), stream)
+    if disc_raw:
+        n_tile = sum(1 for dets in disc_raw.values() for d in dets if d.get("source") == "tile")
+        protocol.emit(protocol.log(f"disc: {len(disc_raw)}/{len(frames)} frames with detection "
+                                  f"(tile-source dets: {n_tile})"), stream)
     if not disc_seq and (getattr(args, "disc_fusion", False) or getattr(args, "hand_roi", False)):
         protocol.emit(protocol.log("warning: --disc-fusion/--hand-roi need --disc-weights（未提供，跳过盘通道）"), stream)
+
+    # disc_frames 兜底（未开融合时保持旧格式兼容：取每帧最高分候选）
+    disc_frames: dict[str, dict] = {}
+    if not getattr(args, "disc_fusion", False):
+        for k, dets in disc_raw.items():
+            top = max(dets, key=lambda d: d.get("conf", 0.0))
+            disc_frames[k] = {"bbox": top["bbox"], "conf": top.get("conf", 0.0),
+                              "cx": top.get("cx"), "cy": top.get("cy")}
 
     # F1 多维融合（默认关）：对盘检测序列做帧间关联+马氏门控+速度拒绝，重写 disc_frames。
     if getattr(args, "disc_fusion", False) and disc_seq:
@@ -131,11 +144,14 @@ def run(args, stream=None) -> int:
             except Exception as e:  # noqa: BLE001
                 protocol.emit(protocol.log(f"disc-fusion: calibration ignored ({e})"), stream)
 
-        # 还原成逐帧序列（含空帧）
-        seq: list[list[dict]] = [[] for _ in disc_seq]
-        for k, (idx, d) in enumerate(disc_seq):
-            if d is not None:
-                seq[k] = [{"bbox": list(d["bbox"]), "conf": float(d.get("conf", 0.0))}]
+        # 还原成逐帧序列（含空帧；候选列表带 source/holder 直通融合层）
+        seq: list[list[dict]] = []
+        for _idx, d_dets in disc_seq:
+            seq.append([{"bbox": list(d["bbox"]),
+                         "conf": float(d.get("conf", 0.0)),
+                         **({"source": d["source"]} if d.get("source") else {}),
+                         **({"holder_track": d["holder_track"]} if d.get("holder_track") is not None else {})}
+                        for d in d_dets])
         fused, fstats = fuse_disc_detections(
             seq, fps=info["fps"], world_projector=proj,
             width=info["width"], height=info["height"],
@@ -146,7 +162,7 @@ def run(args, stream=None) -> int:
             f"disc-fusion: tracking={fstats.n_tracking} predicting={fstats.n_predicting} "
             f"gated={fstats.n_gated} rejected_speed={fstats.n_rejected_speed} "
             f"lost={fstats.n_lost} longest_track={fstats.longest_track_frames}f "
-            f"({len(disc_frames)} -> {len(new_disc)} frames)"), stream)
+            f"({len(disc_raw)} -> {len(new_disc)} frames)"), stream)
         disc_frames = new_disc
 
         # F1 第二检测通道（--hand-roi，默认关）：持盘贴身遮挡的盘整帧看不见（§13.11 G4
@@ -291,20 +307,30 @@ def run(args, stream=None) -> int:
         "team_overrides": {},
         "frames": frames,
         "disc_frames": disc_frames,
+        "disc_raw": disc_raw,
     }
 
-    # 事件统计（需飞盘轨迹；无盘则不产生事件——见验证报告）
-    if disc_frames and getattr(args, "calibration", None):
-        try:
-            from .events_runner import compute_events
+    # 事件统计（需飞盘轨迹；无盘则不产生事件——见验证报告）。
+    # 标定来源优先级（§13.16 B / R7 修复）：段内自动标定产物（时段匹配）> --calibration。
+    if disc_frames:
+        calib_for_events = getattr(args, "calibration", None)
+        segcal = out_dir / "segment_calib.json"
+        if segcal.exists():
+            calib_for_events = str(segcal)
+        if calib_for_events:
+            try:
+                from .events_runner import compute_events
 
-            events_doc = compute_events(doc, Path(args.calibration))
-            doc["events"] = events_doc["events"]
-            doc["score"] = events_doc["score"]
-            protocol.emit(protocol.log(
-                f"events: {len(events_doc['events'])} (score={events_doc['score']})"), stream)
-        except Exception as e:  # noqa: BLE001 —— 事件统计失败不拖垮产物落盘
-            protocol.emit(protocol.log(f"events: failed ({type(e).__name__}: {e})"), stream)
+                events_doc = compute_events(doc, Path(calib_for_events))
+                doc["events"] = events_doc["events"]
+                doc["score"] = events_doc["score"]
+                doc["direction_flips"] = events_doc.get("direction_flips", [])
+                doc["team_left"] = events_doc.get("team_left", 0)
+                protocol.emit(protocol.log(
+                    f"events: {len(events_doc['events'])} (score={events_doc['score']}, "
+                    f"calib={Path(calib_for_events).name})"), stream)
+            except Exception as e:  # noqa: BLE001 —— 事件统计失败不拖垮产物落盘
+                protocol.emit(protocol.log(f"events: failed ({type(e).__name__}: {e})"), stream)
 
     tmp_path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
     tmp_path.replace(out_path)  # 原子写：中断不会留下半截 JSON
@@ -338,6 +364,43 @@ def run_team_only(args, stream=None) -> int:
     return 0
 
 
+def run_events_only(args, stream=None) -> int:
+    """只重算事件统计（CPU 秒级，§13.16 B/R7）：复用已有 tracks.json + 标定。
+
+    标定优先级：--events-calibration 显式给出 > tracks.json 同目录 segment_calib.json。
+    保留既有 event_review / team_overrides（人工复核成果不被清空，R8 前置）。
+    """
+    doc_path = Path(args.events_only)
+    if not doc_path.exists():
+        protocol.emit(protocol.error(f"tracks.json not found: {doc_path}"), stream)
+        return 1
+    doc = json.loads(doc_path.read_text(encoding="utf-8"))
+    if not doc.get("disc_frames"):
+        protocol.emit(protocol.error("tracks.json has no disc_frames — 事件统计需盘轨迹"), stream)
+        return 1
+    calib = getattr(args, "events_calibration", None) or doc_path.parent / "segment_calib.json"
+    if not Path(calib).exists():
+        protocol.emit(protocol.error(f"calibration not found: {calib}"), stream)
+        return 1
+    protocol.emit(protocol.meta(len(doc.get("frames", {})), doc.get("fps") or 30.0,
+                                doc.get("width") or 0, doc.get("height") or 0), stream)
+    from .events_runner import compute_events
+
+    events_doc = compute_events(doc, Path(calib))
+    doc["events"] = events_doc["events"]
+    doc["score"] = events_doc["score"]
+    doc["direction_flips"] = events_doc.get("direction_flips", [])
+    doc["team_left"] = events_doc.get("team_left", 0)
+    protocol.emit(protocol.log(
+        f"events: {len(events_doc['events'])} (score={events_doc['score']}, "
+        f"flips={len(doc['direction_flips'])}, calib={Path(calib).name})"), stream)
+    tmp = doc_path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+    tmp.replace(doc_path)
+    protocol.emit(protocol.result(str(doc_path)), stream)
+    return 0
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="frisbee match analysis worker (JSON-lines on stdout)")
     parser.add_argument("--video", default=None, help="视频路径（--team-only 时可省）")
@@ -357,6 +420,12 @@ def main(argv=None) -> int:
     parser.add_argument("--disc-weights", default=None,
                         help="飞盘检测权重（提供则启用双模型联合跟踪 + 事件统计）")
     parser.add_argument("--disc-conf", type=float, default=0.35, help="飞盘检测置信度阈值")
+    parser.add_argument("--disc-tile-grid", type=int, default=0,
+                        help="盘切片补召回网格（2=2×2，Phase A §13.16；0=关闭）")
+    parser.add_argument("--disc-tile-trigger", default="conf<0.5",
+                        help="切片触发档位：off / only-no-detection / conf<X（默认 conf<0.5）")
+    parser.add_argument("--disc-tile-topk", type=int, default=2,
+                        help="每帧保留的盘候选上限（IOS-NMM 合并后按 conf 取前 K）")
     parser.add_argument("--disc-fusion", action="store_true",
                         help="F1 多维融合：盘检测帧间关联+马氏门控+速度拒绝（默认关）")
     parser.add_argument("--hand-roi", action="store_true",
@@ -385,10 +454,15 @@ def main(argv=None) -> int:
                         help="保存未过滤原始检出（自动标定等用途）")
     parser.add_argument("--team-only", metavar="TRACKS_JSON", default=None,
                         help="跳过跟踪，只对已有 tracks.json 重算分队")
+    parser.add_argument("--events-only", metavar="TRACKS_JSON", default=None,
+                        help="跳过跟踪，只重算事件统计（CPU 秒级；标定取同目录 "
+                             "segment_calib.json 或 --events-calibration）")
+    parser.add_argument("--events-calibration", default=None,
+                        help="--events-only 的显式标定路径（默认同目录 segment_calib.json）")
     args = parser.parse_args(argv)
 
-    if not args.team_only and not args.video:
-        parser.error("--video is required unless --team-only is used")
+    if not args.team_only and not args.video and not args.events_only:
+        parser.error("--video is required unless --team-only/--events-only is used")
 
     if args.hand_roi:
         args.disc_fusion = True  # 手部 ROI 定义在融合态之上，隐含开启
@@ -408,6 +482,8 @@ def main(argv=None) -> int:
     try:
         if args.team_only:
             return run_team_only(args)
+        if args.events_only:
+            return run_events_only(args)
         args.classes = [int(c) for c in str(args.classes).split(",") if c.strip()]
         return run(args)
     except WorkerCancelled as e:

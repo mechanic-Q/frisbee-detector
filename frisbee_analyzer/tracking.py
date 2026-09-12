@@ -119,6 +119,84 @@ def _nms(boxes, scores, iou_thr: float):
     return keep
 
 
+def _nmm_ios(boxes, scores, ios_thr: float = 0.5):
+    """IOS（Intersection-over-Smaller）贪心 NMM——SAHI 默认合并度量（§13.16）。
+
+    切片放大小目标时同一物理盘的整帧框/切片框尺寸差异大，IoU 对 1-2px 偏移
+    敏感；IOS=交叠面积/较小框面积，抑制"切片框包含整帧框"的重复更稳。
+    贪心保留高分框，合并其 IOS>阈值的低分框。
+    """
+    import numpy as np
+
+    boxes = np.asarray(boxes, dtype=float)
+    scores = np.asarray(scores, dtype=float)
+    order = scores.argsort()[::-1]
+    keep = []
+    while order.size > 0:
+        i = order[0]
+        keep.append(int(i))
+        if order.size == 1:
+            break
+        rest = order[1:]
+        xx1 = np.maximum(boxes[i, 0], boxes[rest, 0])
+        yy1 = np.maximum(boxes[i, 1], boxes[rest, 1])
+        xx2 = np.minimum(boxes[i, 2], boxes[rest, 2])
+        yy2 = np.minimum(boxes[i, 3], boxes[rest, 3])
+        inter = np.clip(xx2 - xx1, 0, None) * np.clip(yy2 - yy1, 0, None)
+        area_i = (boxes[i, 2] - boxes[i, 0]) * (boxes[i, 3] - boxes[i, 1])
+        area_r = (boxes[rest, 2] - boxes[rest, 0]) * (boxes[rest, 3] - boxes[rest, 1])
+        smaller = np.minimum(area_i, area_r)
+        ios = inter / np.maximum(smaller, 1e-9)
+        order = rest[ios <= ios_thr]
+    return keep
+
+
+def detect_disc_candidates(model, frame, disc_conf: float, imgsz: int,
+                           disc_classes=None, tile_grid: int = 0,
+                           tile_trigger: str = "conf<0.5", tile_conf: float = 0.35,
+                           tile_topk: int = 2):
+    """盘候选检测（Phase A §13.16）：整帧 + 触发式切片补召回，IOS-NMM 合并。
+
+    触发档位 tile_trigger：
+      "off"                — 不切片（旧行为）
+      "only-no-detection"  — 仅整帧无检出时切片（最保守）
+      "conf<X"             — 整帧最佳 conf < X 时切片（默认 conf<0.5）
+
+    返回 [{"bbox","conf","source"}] 按 conf 降序最多 tile_topk 个。
+    source: "full"=整帧，"tile"=切片补召回。
+    """
+    res = model.predict(frame, conf=disc_conf, imgsz=imgsz,
+                        classes=list(disc_classes) if disc_classes else None,
+                        verbose=False)[0]
+    boxes, scores, sources = [], [], []
+    if res.boxes is not None and len(res.boxes):
+        for box, cf in zip(res.boxes.xyxy.cpu().numpy(), res.boxes.conf.cpu().tolist()):
+            boxes.append([float(v) for v in box])
+            scores.append(float(cf))
+            sources.append("full")
+    best_conf = max(scores, default=0.0)
+
+    do_tile = tile_grid > 0 and (
+        tile_trigger == "only-no-detection" and not boxes
+        or tile_trigger.startswith("conf<") and best_conf < float(tile_trigger[5:]))
+    if do_tile:
+        for box, cf, _cl in tiled_detect(model, frame, tile_conf, imgsz,
+                                         disc_classes or [], grid=tile_grid):
+            boxes.append([float(v) for v in box])
+            scores.append(float(cf))
+            sources.append("tile")
+
+    if not boxes:
+        return []
+    keep = _nmm_ios(boxes, scores)
+    merged = [{"bbox": [round(v, 1) for v in boxes[i]],
+               "conf": round(scores[i], 4),
+               "source": sources[i]}
+              for i in keep]
+    merged.sort(key=lambda d: d["conf"], reverse=True)
+    return merged[:tile_topk]
+
+
 def iter_player_tracks(
     video_path: str | Path,
     weights: str = "yolo26x.pt",
@@ -212,11 +290,15 @@ def iter_player_and_disc_tracks(
     disc_classes: tuple[int, ...] | None = None,
     tile_grid: int = 0,
     tile_conf: float = 0.3,
+    disc_tile_grid: int = 0,
+    disc_tile_trigger: str = "conf<0.5",
+    disc_tile_topk: int = 2,
 ):
-    """双模型单遍联合跟踪：球员（BoT-SORT 多目标）+ 飞盘（单目标跟踪）。
+    """双模型单遍联合跟踪：球员（BoT-SORT 多目标）+ 飞盘（候选列表）。
 
-    逐帧产出 (frame_idx, player_dets, disc_det)。disc_det 为 None 或
-    {"track_id","bbox","conf","cls","cx","cy"}（中心点便于事件引擎消费）。
+    逐帧产出 (frame_idx, player_dets, disc_dets)。disc_dets 为 [] 或按 conf 降序的
+    [{"bbox","conf","cls","cx","cy","source"}] 列表（Phase A §13.16：整帧+触发式
+    切片补召回，IOS-NMM 合并，top-disc_tile_topk；source="full"|"tile"）。
     飞盘用独立模型/阈值——飞盘是小目标且与 person 类无重叠，不能共用一个检测器。
     """
     from ultralytics import YOLO
@@ -272,23 +354,16 @@ def iter_player_and_disc_tracks(
                     "cls": int(cl),
                 })
 
-        disc_det = None
-        d_res = d_model.predict(frame, conf=disc_conf, imgsz=imgsz,
-                                classes=list(disc_classes) if disc_classes else None,
-                                verbose=False)[0]
-        if d_res.boxes is not None and len(d_res.boxes):
-            # 单盘假设：取置信度最高的检测
-            best_i = int(d_res.boxes.conf.argmax().item())
-            box = d_res.boxes.xyxy[best_i].cpu().numpy()
-            disc_det = {
-                "bbox": [round(float(v), 1) for v in box],
-                "conf": round(float(d_res.boxes.conf[best_i].item()), 3),
-                "cls": int(d_res.boxes.cls[best_i].item()),
-                "cx": round(float((box[0] + box[2]) / 2), 1),
-                "cy": round(float((box[1] + box[3]) / 2), 1),
-            }
+        disc_dets = detect_disc_candidates(
+            d_model, frame, disc_conf, imgsz, disc_classes,
+            tile_grid=disc_tile_grid, tile_trigger=disc_tile_trigger,
+            tile_conf=disc_conf, tile_topk=disc_tile_topk)
+        for d in disc_dets:
+            x1, y1, x2, y2 = d["bbox"]
+            d["cx"] = round((x1 + x2) / 2, 1)
+            d["cy"] = round((y1 + y2) / 2, 1)
 
-        yield frame_idx, p_dets, disc_det
+        yield frame_idx, p_dets, disc_dets
         frame_idx += 1
         if max_frames is not None and frame_idx >= max_frames:
             break

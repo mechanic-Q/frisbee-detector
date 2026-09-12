@@ -88,3 +88,24 @@ def test_max_streak_cap():
     extra, stats = impute_possession(fused, players, min_streak=3, max_streak=10)
     assert stats.frames_imputed == 10
     assert set(extra) == set(range(1, 11))
+
+
+def test_holder_track_stamped_on_imputed_frames():
+    """A2：合成观测带 holder_track 印章，供统计层直接归属持盘人。"""
+    fused = [_df("tracking")] + [_df("searching")] * 4
+    players = {i: [_player([80, 150, 130, 260], tid=7)] for i in range(5)}
+    extra, stats = impute_possession(fused, players, min_streak=3)
+    assert stats.frames_imputed == 4
+    for dets in extra.values():
+        assert dets[0]["holder_track"] == 7
+        assert dets[0]["source"] == "possession_imputed"
+
+
+def test_fusion_passes_holder_through():
+    """holder_track 经融合层透传到 DiscFrame。"""
+    from frisbee_analyzer.disc_fusion import fuse_disc_detections
+    dets = [[{"bbox": [100, 100, 116, 116], "conf": 0.5,
+              "source": "possession_imputed", "holder_track": 42}]] * 4
+    fused, _ = fuse_disc_detections(dets, fps=30.0)
+    trk = [f for f in fused if f.status == "tracking"]
+    assert trk and all(f.holder_track == 42 for f in trk)

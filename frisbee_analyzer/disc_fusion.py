@@ -25,7 +25,11 @@ MIN_SCORE = 0.3                    # 候选最低分（低于直接丢弃）
 GATE_THRESHOLD = 13.8155           # chi²₀.₉₉₉(df=2)——事后马氏门控（v3 设计）
 MAX_SPEED_MS = 25.0                # 世界坐标物理上限（飞盘不可能超此速度）
 LOST_TRACK_THRESHOLD = 15          # 连续丢失/降级超过此帧数 → 轨迹结束重找
-MIN_TRACK_QUALITY = 3              # 开轨迹所需最少连续 tracking 帧
+MIN_TRACK_QUALITY = 1              # 开轨迹确认帧数（§13.16 引入；chunk1 实测 =3 时短轨迹
+                                   # tracking -42%（483→280）弊大于利——本素材假盘锁轨非
+                                   # 主要矛盾，默认关闭保留常量供后续素材启用）
+TILE_MIN_SCORE = 0.5               # 切片候选在搜索态的更高 conf 准入（tile 有放大
+                                   # 效应，假盘易高分开轨锁死真盘，§13.16）
 
 
 # ── 数据结构 ──
@@ -47,6 +51,7 @@ class DiscFrame:
     speed_ms: float | None = None
     world_xy: tuple[float, float] | None = None
     source: str | None = None   # 检出来源（None=整帧主通道，"hand_roi"=手部 ROI 复检）
+    holder_track: int | None = None  # 持盘补全印章（A2）：合成观测的归属球员 track_id
 
 
 @dataclass
@@ -181,7 +186,23 @@ def fuse_disc_detections(
             cands.append(((x1 + x2) / 2, (y1 + y2) / 2, bw * bh, bw / max(bh, 1.0), float(d["conf"])))
 
         pred_pt = pred if (is_tracking and pred is not None) else None
-        best = score_candidates(cands, pred_pt, pred_pt, prev_area if is_confident else None)
+
+        # ── 候选准入（§13.16）：搜索态对切片候选施更高 conf 准入（tile 放大效应
+        # 使假盘 conf 系统性偏高；跟踪态不卡——门控/速度维度负责拒野值）──
+        admit = []
+        for i, d in enumerate(dets):
+            src = d.get("source")
+            if pred_pt is None and src == "tile" and float(d["conf"]) < TILE_MIN_SCORE:
+                continue
+            admit.append(i)
+        if not admit:
+            best = -1
+            cands = []
+        else:
+            admit_cands = [cands[i] for i in admit]
+            pick = score_candidates(admit_cands, pred_pt, pred_pt,
+                                    prev_area if is_confident else None)
+            best = admit[pick] if pick >= 0 else -1
 
         if best < 0:
             # 本帧无可信候选
@@ -208,44 +229,71 @@ def fuse_disc_detections(
             continue
 
         cx, cy, area, _aspect, conf = cands[best]
-        bbox = dets[best]["bbox"]
 
-        # ── 维度1：世界坐标速度物理拒绝（先于马氏门控——物理定律优先）──
-        wx = wy = None
-        if world_projector is not None:
-            try:
-                proj = world_projector(cx, cy)
-                if proj is not None:
-                    wx, wy = float(proj[0]), float(proj[1])
-            except Exception:
-                wx = wy = None
-        speed = None
-        if wx is not None and last_world is not None and is_tracking:
-            speed = math.hypot(wx - last_world[0], wy - last_world[1]) / max(fps, 1e-6)
-            if speed > max_speed_ms:
-                stats.n_rejected_speed += 1
-                # 速度物理不可能 → 视同野值：降级纯预测，不更新 last_world
+        # ── 维度1+2 合并判定（§13.16 门控重试）：候选按"距 Kalman 预测的马氏距离
+        # 序"逐个过速度门+马氏门，第一个过门者胜出——文献惯例（运动一致性选优），
+        # 修复"只验证评分最优候选"的污染模式：评分选中的假盘被门拒后，真盘仍有机会。
+        # 搜索态（无预测）只有单候选准入逻辑，直接走接受路径。
+        order = [best]
+        if is_tracking and pred_pt is not None and len(cands) > 1:
+            order = sorted(
+                range(len(cands)),
+                key=lambda i: math.hypot(cands[i][0] - pred_pt[0], cands[i][1] - pred_pt[1]))
+        accepted = None
+        any_speed_rejected = False
+        for bi in order:
+            cx, cy, area, _aspect, conf = cands[bi]
+            # 维度1：世界坐标速度物理拒绝（物理定律优先）
+            wx = wy = None
+            if world_projector is not None:
+                try:
+                    proj = world_projector(cx, cy)
+                    if proj is not None:
+                        wx, wy = float(proj[0]), float(proj[1])
+                except Exception:
+                    wx = wy = None
+            speed = None
+            if wx is not None and last_world is not None and is_tracking:
+                speed = math.hypot(wx - last_world[0], wy - last_world[1]) / max(fps, 1e-6)
+                if speed > max_speed_ms:
+                    any_speed_rejected = True
+                    stats.n_rejected_speed += 1
+                    continue  # 物理不可能 → 试下一候选
+            # 维度2：马氏门控（仅跟踪态）
+            d2 = None
+            if is_tracking and pred_pt is not None and track_len >= 2:
+                d2 = kf.mahalanobis2(cx, cy)
+                if d2 > gate_threshold:
+                    continue  # 野值 → 试下一候选
+            accepted = (bi, cx, cy, area, conf, wx, wy, speed, d2)
+            break
+
+        if accepted is None:
+            # 全部候选被门拒 → 降级纯预测（语义同旧 single-best 路径）
+            # 帧级计数：n_gated=因门控降级的帧；n_rejected_speed 已在循环内计次
+            downgraded_status = "rejected" if any_speed_rejected else "gated"
+            stats.n_gated += 0 if any_speed_rejected else 1
+            if is_tracking:
                 lost_counter += 1
-                px, py = pred
-                frames_out.append(DiscFrame([px - 8, py - 8, px + 8, py + 8], conf, px, py, "rejected",
-                                            speed_ms=round(speed, 1), world_xy=(wx, wy)))
                 if lost_counter > LOST_TRACK_THRESHOLD:
                     kf = Kalman2D(); track_len = 0; lost_counter = 0
-                continue
-
-        # ── 维度2：马氏门控（仅跟踪态；野值拒绝→降级纯预测，不污染滤波器）──
-        d2 = None
-        if is_tracking and pred_pt is not None and track_len >= 2:
-            d2 = kf.mahalanobis2(cx, cy)
-            if d2 > gate_threshold:
-                lost_counter += 1
-                stats.n_gated += 1
+                    stats.n_lost += 1
+                    frames_out.append(DiscFrame(None, 0.0, 0.0, 0.0, "searching"))
+                    stats.n_searching += 1
+                    continue
                 px, py = pred
-                frames_out.append(DiscFrame([px - 8, py - 8, px + 8, py + 8], conf, px, py, "gated", d2=round(d2, 1)))
+                frames_out.append(DiscFrame([px - 8, py - 8, px + 8, py + 8], conf, px, py,
+                                            downgraded_status))
                 if lost_counter > LOST_TRACK_THRESHOLD:
                     kf = Kalman2D(); track_len = 0; lost_counter = 0
-                prev_area = None  # 门控后面积参考失效
-                continue
+                prev_area = None
+            else:
+                frames_out.append(DiscFrame(None, 0.0, 0.0, 0.0, "searching"))
+                stats.n_searching += 1
+            continue
+
+        bi, cx, cy, area, conf, wx, wy, speed, d2 = accepted
+        bbox = dets[bi]["bbox"]
 
         # ── 接受观测 ──
         kf.correct(cx, cy)
@@ -255,13 +303,18 @@ def fuse_disc_detections(
         prev_area = area
         if wx is not None:
             last_world = (wx, wy)
-        vx, vy = kf.velocity()
-        speed_out = math.hypot(vx, vy) / max(fps, 1e-6) * (1.0)  # px/帧→px/s，仅参考
+        # 开轨确认（§13.16）：MIN_TRACK_QUALITY 帧内的"新轨迹"输出为 searching——
+        # 单帧假盘不再立即锁轨；确认后这批帧随轨迹成立一并记 tracking。
+        if track_len < MIN_TRACK_QUALITY:
+            frames_out.append(DiscFrame(None, 0.0, 0.0, 0.0, "searching"))
+            stats.n_searching += 1
+            continue
         frames_out.append(DiscFrame(bbox, conf, cx, cy, "tracking",
                                     d2=round(d2, 1) if d2 is not None else None,
                                     speed_ms=round(speed, 1) if speed is not None else None,
                                     world_xy=(wx, wy) if wx is not None else None,
-                                    source=dets[best].get("source")))
+                                    source=dets[bi].get("source"),
+                                    holder_track=dets[bi].get("holder_track")))
         stats.n_tracking += 1
         stats.longest_track_frames = max(stats.longest_track_frames, track_len)
 

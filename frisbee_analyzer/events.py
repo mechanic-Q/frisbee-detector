@@ -87,6 +87,8 @@ class PossessionConfig:
     lose_hold_frames: int = 6         # 持盘判定连续丢失 N 帧后结束持有
     player_height_m: float = 1.8      # 用于从脚点推算手部点的身高假设
     imputed_score_guard_frames: int = 90  # 近期出现合成观测时，状态机得分降级 candidate 的保护窗（§13.14）
+    score_cooloff_frames: int = 300   # 得分后冷却窗（§13.16 C0：引擎自动 pull 解锁；
+                                      # 10s@30fps，防得分后庆祝走动被误选持盘）
 
 
 @dataclass
@@ -291,6 +293,10 @@ class MatchEventEngine:
                     self.score[team] += 1
                     self._emit(Event(EventType.SCORE, self.frame, to_track=p.track_id, team=team,
                                      x=p.x, y=p.y, detail=f"score={dict(self.score)}"))
+                    # USAU 9.B（§13.16 B）：计入比分的得分后两队进攻端区立即互换
+                    if len(self.ezs) == 2:
+                        self.ezs[0].team_attacking, self.ezs[1].team_attacking = \
+                            self.ezs[1].team_attacking, self.ezs[0].team_attacking
                 return
 
     def notify_pull(self, frame: int, x: float = 0.0, y: float = 0.0) -> Event:
