@@ -51,6 +51,8 @@ def _fused_to_disc_doc(fused) -> dict[str, dict]:
                 entry["source"] = f.source
             if f.holder_track is not None:
                 entry["holder_track"] = f.holder_track
+            if f.gap_misses is not None:
+                entry["gap_misses"] = f.gap_misses
             out[str(idx)] = entry
     return out
 

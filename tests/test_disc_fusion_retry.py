@@ -107,3 +107,39 @@ def test_nmm_ios_keeps_distinct_small_boxes():
     """两个互不交叠的小框（IOS=0）都保留。"""
     keep = _nmm_ios([[10, 10, 26, 26], [60, 60, 76, 76]], [0.8, 0.7])
     assert len(keep) == 2
+
+
+# ── §13.18 断轨续接强化 ──
+
+def test_reacquire_after_gap():
+    """断档 25 帧（>旧 LOST_TRACK_THRESHOLD=15，<新 REACQ_WINDOW=30）后盘重现 → 续接。"""
+    base = []
+    for i in range(10):
+        cx = 100.0 + 3 * i
+        base.append([{"bbox": [cx - 8, 192, cx + 8, 208], "conf": 0.8}])
+    gap = [[] for _ in range(25)]                     # 旧逻辑 15 帧即破产
+    reappear = [{"bbox": [130 - 8, 192, 130 + 8, 208], "conf": 0.7}]  # 预测/最后观测邻域
+    fused, stats = fuse_disc_detections(base + gap + [reappear], fps=25.0)
+    assert fused[-1].status == "tracking", f"断档重现应续接: {fused[-1].status}"
+    assert stats.longest_track_frames >= 11
+
+
+def test_reacquire_radius_hard_cap():
+    """续接段候选超出搜索圆 → 不接（防漂移乱接）。"""
+    base = []
+    for i in range(10):
+        cx = 100.0 + 3 * i
+        base.append([{"bbox": [cx - 8, 192, cx + 8, 208], "conf": 0.8}])
+    gap = [[] for _ in range(25)]
+    far = [{"bbox": [1200 - 8, 192, 1200 + 8, 208], "conf": 0.9}]  # 距最后观测 ~1100px，圆外
+    fused, _ = fuse_disc_detections(base + gap + [far], fps=25.0)
+    assert fused[-1].status != "tracking", "远端候选不得借续接乱接"
+
+
+def test_reacq_window_expiry():
+    """断档超过 REACQ_WINDOW（30 帧）→ 轨迹破产 searching。"""
+    base = [[{"bbox": [100 - 8, 192, 100 + 8, 208], "conf": 0.8}]] * 5
+    long_gap = [[] for _ in range(40)]
+    fused, stats = fuse_disc_detections(base + long_gap, fps=25.0)
+    assert stats.n_lost >= 1, "超窗应破产"
+    assert fused[-1].status == "searching"

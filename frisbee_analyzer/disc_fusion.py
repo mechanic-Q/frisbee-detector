@@ -30,6 +30,16 @@ MIN_TRACK_QUALITY = 1              # 开轨迹确认帧数（§13.16 引入；ch
                                    # 主要矛盾，默认关闭保留常量供后续素材启用）
 TILE_MIN_SCORE = 0.5               # 切片候选在搜索态的更高 conf 准入（tile 有放大
                                    # 效应，假盘易高分开轨锁死真盘，§13.16）
+REACQ_WINDOW = 30                  # 断轨续接窗（§13.18：60.3% 的 no_det 帧两侧均有
+                                   # tracking——短暂出画/遮挡后盘会回来。150 帧实测
+                                   # 过长：外推 predicting 刷屏且锚点占位挤掉重检通道；
+                                   # 30f=1s 内续接拿收益，超窗诚实转 searching
+REACQ_RADIUS_BASE = 60.0           # 续接搜索基础半径 px（断档后盘可能被传走）
+REACQ_RADIUS_PER_S = 400.0         # 每秒断档追加的搜索半径 px（≈16m/s 世界速度上限）
+REACQ_RADIUS_CAP = 300.0           # 续接搜索半径上限 px（防无限漂移乱接）
+REACQ_MIN_CONF = 0.6               # 续接候选 conf 下限（§13.18 实测教训：宽松续接把
+                                   # 断档期弱假影接进轨迹、真盘回来反被挤走——
+                                   # chunk4 离线重算 tracking 671→349 的根因）
 
 
 # ── 数据结构 ──
@@ -52,6 +62,8 @@ class DiscFrame:
     world_xy: tuple[float, float] | None = None
     source: str | None = None   # 检出来源（None=整帧主通道，"hand_roi"=手部 ROI 复检）
     holder_track: int | None = None  # 持盘补全印章（A2）：合成观测的归属球员 track_id
+    gap_misses: int | None = None    # predicting 帧距最后观测的帧数（§13.18：统计层
+                                     # 区分短断档外推[较可信]与长断档外推[弱]）
 
 
 @dataclass
@@ -165,7 +177,9 @@ def fuse_disc_detections(
     track_len = 0
     cur_track = 0
     lost_counter = 0
+    no_det_streak = 0  # 连续"整帧无候选"帧数（§13.18 续接判据的激活条件；门拒帧不计）
     last_world: tuple[float, float] | None = None
+    last_obs_pt: tuple[float, float] | None = None  # 最后观测像素点（§13.18 续接圆心）
     prev_area: float | None = None
 
     for dets in per_frame_dets:
@@ -208,21 +222,22 @@ def fuse_disc_detections(
             # 本帧无可信候选
             if is_tracking:
                 lost_counter += 1
-                if lost_counter > LOST_TRACK_THRESHOLD:
-                    kf = Kalman2D(); track_len = 0; lost_counter = 0
+                no_det_streak += 1
+                px, py = pred
+                in_bounds = 0 <= px <= width and 0 <= py <= height
+                if lost_counter > REACQ_WINDOW or not in_bounds:
+                    # §13.18 断轨续接：超过续接窗（或预测出画）才真正破产重找。
+                    # 此前 LOST_TRACK_THRESHOLD=15 帧即砍轨——60.3% 的 no_det 帧
+                    # 两侧均有 tracking（短暂出画后盘会回来），过早破产使轨迹
+                    # 碎片化（域内 tracking 覆盖率仅 19%）。
+                    kf = Kalman2D(); track_len = 0; lost_counter = 0; no_det_streak = 0
                     stats.n_lost += 1
                     frames_out.append(DiscFrame(None, 0.0, 0.0, 0.0, "searching"))
                     stats.n_searching += 1
                     continue
-                px, py = pred
-                in_bounds = 0 <= px <= width and 0 <= py <= height
-                if in_bounds:
-                    frames_out.append(DiscFrame([px - 8, py - 8, px + 8, py + 8], 0.0, px, py, "predicting"))
-                    stats.n_predicting += 1
-                else:
-                    kf = Kalman2D(); track_len = 0; lost_counter = 0
-                    frames_out.append(DiscFrame(None, 0.0, 0.0, 0.0, "searching"))
-                    stats.n_searching += 1
+                frames_out.append(DiscFrame([px - 8, py - 8, px + 8, py + 8], 0.0, px, py,
+                                            "predicting", gap_misses=lost_counter))
+                stats.n_predicting += 1
             else:
                 frames_out.append(DiscFrame(None, 0.0, 0.0, 0.0, "searching"))
                 stats.n_searching += 1
@@ -239,11 +254,23 @@ def fuse_disc_detections(
             order = sorted(
                 range(len(cands)),
                 key=lambda i: math.hypot(cands[i][0] - pred_pt[0], cands[i][1] - pred_pt[1]))
+        # §13.18 续接放宽：断档越久预测漂移越大（常数速度外推会把预测点带飞——
+        # 盘被接住会停而外推不停）。断档 >3 帧（**无候选帧**，门拒帧不积累——
+        # 有候选说明盘在画面只是被拒，那是门控问题）后改用**最后观测点邻域**
+        # 判据：欧氏圆（半径随时长放大、上限封顶）；≤3 帧仍走马氏。
+        gap_relaxed = is_tracking and no_det_streak > 3
+        gate_eff = gate_threshold
+        reacq_center = reacq_radius = None
+        if gap_relaxed:
+            gap_s = (no_det_streak + 1) / max(fps, 1e-6)
+            reacq_center = (last_obs_pt if last_obs_pt else pred_pt)
+            reacq_radius = min(REACQ_RADIUS_BASE + REACQ_RADIUS_PER_S * gap_s,
+                               REACQ_RADIUS_CAP)
         accepted = None
         any_speed_rejected = False
         for bi in order:
             cx, cy, area, _aspect, conf = cands[bi]
-            # 维度1：世界坐标速度物理拒绝（物理定律优先）
+            # 维度1：世界坐标速度物理拒绝（物理定律优先于门控；续接段按断档时长折算）
             wx = wy = None
             if world_projector is not None:
                 try:
@@ -254,17 +281,26 @@ def fuse_disc_detections(
                     wx = wy = None
             speed = None
             if wx is not None and last_world is not None and is_tracking:
-                speed = math.hypot(wx - last_world[0], wy - last_world[1]) / max(fps, 1e-6)
+                if gap_relaxed:
+                    dt_s = (no_det_streak + 1) / max(fps, 1e-6)
+                    speed = math.hypot(wx - last_world[0], wy - last_world[1]) / dt_s
+                else:
+                    speed = math.hypot(wx - last_world[0], wy - last_world[1]) / max(fps, 1e-6)
                 if speed > max_speed_ms:
                     any_speed_rejected = True
                     stats.n_rejected_speed += 1
                     continue  # 物理不可能 → 试下一候选
-            # 维度2：马氏门控（仅跟踪态）
+            # 维度2：门控（短断档走马氏；长断档走最后观测点欧氏圆 + 高 conf 门槛）
             d2 = None
-            if is_tracking and pred_pt is not None and track_len >= 2:
+            if reacq_center is not None:
+                if conf < REACQ_MIN_CONF:
+                    continue  # 弱检出不得借续接进场（假影防线）
+                if math.hypot(cx - reacq_center[0], cy - reacq_center[1]) > reacq_radius:
+                    continue
+            elif is_tracking and pred_pt is not None and track_len >= 2:
                 d2 = kf.mahalanobis2(cx, cy)
-                if d2 > gate_threshold:
-                    continue  # 野值 → 试下一候选
+                if d2 > gate_eff:
+                    continue
             accepted = (bi, cx, cy, area, conf, wx, wy, speed, d2)
             break
 
@@ -273,10 +309,11 @@ def fuse_disc_detections(
             # 帧级计数：n_gated=因门控降级的帧；n_rejected_speed 已在循环内计次
             downgraded_status = "rejected" if any_speed_rejected else "gated"
             stats.n_gated += 0 if any_speed_rejected else 1
+            no_det_streak = 0  # 有候选（哪怕被拒）：盘在画面，续接判据不激活
             if is_tracking:
                 lost_counter += 1
-                if lost_counter > LOST_TRACK_THRESHOLD:
-                    kf = Kalman2D(); track_len = 0; lost_counter = 0
+                if lost_counter > REACQ_WINDOW:
+                    kf = Kalman2D(); track_len = 0; lost_counter = 0; no_det_streak = 0
                     stats.n_lost += 1
                     frames_out.append(DiscFrame(None, 0.0, 0.0, 0.0, "searching"))
                     stats.n_searching += 1
@@ -284,8 +321,6 @@ def fuse_disc_detections(
                 px, py = pred
                 frames_out.append(DiscFrame([px - 8, py - 8, px + 8, py + 8], conf, px, py,
                                             downgraded_status))
-                if lost_counter > LOST_TRACK_THRESHOLD:
-                    kf = Kalman2D(); track_len = 0; lost_counter = 0
                 prev_area = None
             else:
                 frames_out.append(DiscFrame(None, 0.0, 0.0, 0.0, "searching"))
@@ -298,9 +333,11 @@ def fuse_disc_detections(
         # ── 接受观测 ──
         kf.correct(cx, cy)
         lost_counter = 0
+        no_det_streak = 0
         track_len += 1
         cur_track = max(cur_track, 1)
         prev_area = area
+        last_obs_pt = (cx, cy)
         if wx is not None:
             last_world = (wx, wy)
         # 开轨确认（§13.16）：MIN_TRACK_QUALITY 帧内的"新轨迹"输出为 searching——
