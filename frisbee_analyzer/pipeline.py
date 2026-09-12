@@ -155,7 +155,7 @@ def run(args, stream=None) -> int:
                          **({"holder_track": d["holder_track"]} if d.get("holder_track") is not None else {})}
                         for d in d_dets])
         fused, fstats = fuse_disc_detections(
-            seq, fps=info["fps"], world_projector=proj,
+            seq, fps=info["fps"], world_projector=proj, field_margin_m=5.0 if proj else None,
             width=info["width"], height=info["height"],
         )
         fused_cur, seq_cur = fused, seq
@@ -182,7 +182,7 @@ def run(args, stream=None) -> int:
                 log=lambda m: protocol.emit(protocol.log(m), stream))
             seq2, mstats = merge_hand_roi_detections(seq, extra)
             fused2, fstats2 = fuse_disc_detections(
-                seq2, fps=info["fps"], world_projector=proj,
+                seq2, fps=info["fps"], world_projector=proj, field_margin_m=5.0 if proj else None,
                 width=info["width"], height=info["height"],
             )
             fused_cur, seq_cur = fused2, seq2
@@ -284,7 +284,7 @@ def run(args, stream=None) -> int:
             )
             seq3, _ = merge_hand_roi_detections(seq_cur, extra)
             fused3, fstats3 = fuse_disc_detections(
-                seq3, fps=info["fps"], world_projector=proj,
+                seq3, fps=info["fps"], world_projector=proj, field_margin_m=5.0 if proj else None,
                 width=info["width"], height=info["height"],
             )
             before = len(disc_frames)

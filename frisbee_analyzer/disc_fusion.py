@@ -166,6 +166,8 @@ def fuse_disc_detections(
     max_speed_ms: float = MAX_SPEED_MS,
     width: float = 1920.0,
     height: float = 1080.0,
+    field_margin_m: float | None = None,  # §13.19 场线先验：搜索态场外硬拒缓冲（米；
+                                          # None=关。由 pipeline 按标定存在时开启）
 ) -> tuple[list[DiscFrame], FusionStats]:
     """把逐帧盘检测序列融合成带状态标注的轨迹输出。
 
@@ -280,7 +282,9 @@ def fuse_disc_detections(
         any_speed_rejected = False
         for bi in order:
             cx, cy, area, _aspect, conf = cands[bi]
-            # 维度1：世界坐标速度物理拒绝（物理定律优先于门控；续接段按断档时长折算）
+            # 维度0（§13.19 场线先验，交叉帮助）：有投影时盘候选必须落在场地
+            # 矩形+缓冲内——飞盘不会出现在观众席/记分牌上。仅在**搜索态**硬拒
+            # （跟踪态盘可短暂飞出画框边缘，由门控/续接处理）。
             wx = wy = None
             if world_projector is not None:
                 try:
@@ -289,6 +293,11 @@ def fuse_disc_detections(
                         wx, wy = float(proj[0]), float(proj[1])
                 except Exception:
                     wx = wy = None
+            if world_projector is not None and wx is not None and not is_tracking:
+                m = field_margin_m if field_margin_m is not None else 5.0
+                if not (-m <= wx <= 100 + m and -m <= wy <= 37 + m):
+                    stats.field_rejected += 1
+                    continue  # 场外候选（观众席/记分牌误检）→ 下一候选
             speed = None
             if wx is not None and last_world is not None and is_tracking:
                 if gap_relaxed:

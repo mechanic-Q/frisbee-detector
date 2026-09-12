@@ -143,7 +143,8 @@ def test_t3_speed_rejection_boundary():
     确认窗之后的帧（轨迹前 2 帧不产生 tracking 输出）。
     """
     scale = 1.0  # 1px = 1m：0.8px/帧 @25fps = 20 m/s（保留）；200px/帧 = 200 m/s（拒绝）
-    proj = lambda cx, cy: (cx * scale, cy * scale)
+    # proj 映到场内（§13.19 场线先验默认关，但显式投影时应给场内坐标）
+    proj = lambda cx, cy: (cx * scale, min(cy * scale, 20.0))
     # 正常轨迹 0.8px/帧 → 20 m/s（边界内保留）
     dets_ok = make_trajectory(20, vel=(0.8, 0.0))
     frames, stats = fuse_disc_detections(dets_ok, fps=25.0, world_projector=proj)
