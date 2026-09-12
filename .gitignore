@@ -147,3 +147,5 @@ results/f1_matrix/phaseA_chunk1/tracks.json
 results/f1_matrix/wfdf_smoke.log
 results/wfdf_eval_*.log
 results/wfdf_eval/*/tracks.json
+
+data/bili_final_test/dfine_obj365/
