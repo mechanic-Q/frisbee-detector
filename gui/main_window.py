@@ -14,7 +14,9 @@ from PySide6.QtWidgets import (QFileDialog, QLabel, QMainWindow, QMessageBox, QP
 from utils.homography import FIELD_LINES_WORLD, load_calibration, world_to_pixel
 
 from .calibrate_dialog import CalibrateDialog
+from .review_queue import ReviewQueueDialog
 from .team_override import TeamOverrideDialog
+from .timeline_strip import EventTimelineStrip
 from .video_player import VideoPlayerWidget
 from .worker_paths import PROJECT_ROOT_GUI, main_checkout_root
 from .worker_process import AnalysisWorker
@@ -71,6 +73,10 @@ class MainWindow(QMainWindow):
         self.act_team.setEnabled(False)
         self.act_team.triggered.connect(self.open_team_override)
 
+        self.act_review = QAction("事件复核", self)
+        self.act_review.setEnabled(False)
+        self.act_review.triggered.connect(self.open_review_queue)
+
         self.act_field_only = QAction("只看场内球员", self)
         self.act_field_only.setCheckable(True)
         self.act_field_only.setChecked(True)
@@ -82,7 +88,7 @@ class MainWindow(QMainWindow):
         self.act_show_unassigned.triggered.connect(self._update_overlay)
 
         for act in (self.act_open, self.act_open_result, self.act_start,
-                    self.act_cancel, self.act_calib, self.act_team):
+                    self.act_cancel, self.act_calib, self.act_team, self.act_review):
             self.addAction(act)
 
         toolbar = self.addToolBar("主工具栏")
@@ -95,6 +101,7 @@ class MainWindow(QMainWindow):
         toolbar.addSeparator()
         toolbar.addAction(self.act_calib)
         toolbar.addAction(self.act_team)
+        toolbar.addAction(self.act_review)
         toolbar.addSeparator()
         toolbar.addAction(self.act_field_only)
         toolbar.addAction(self.act_show_unassigned)
@@ -109,8 +116,9 @@ class MainWindow(QMainWindow):
 
     def _build_bottom_bar(self):
         bar = QWidget()
-        lay = QHBoxLayout(bar)
+        lay = QVBoxLayout(bar)
         lay.setContentsMargins(8, 4, 8, 4)
+        controls = QHBoxLayout()
         self.btn_play = QPushButton("播放/暂停")
         self.btn_play.clicked.connect(self.player.toggle_play)
         self.btn_prev = QPushButton("◀ 帧")
@@ -121,10 +129,16 @@ class MainWindow(QMainWindow):
         self.slider.setRange(0, 0)
         self.slider.sliderMoved.connect(self.player.seek_ms)
         self.player.positionChangedMs.connect(self._on_position_ms)
-        lay.addWidget(self.btn_prev)
-        lay.addWidget(self.btn_play)
-        lay.addWidget(self.btn_next)
-        lay.addWidget(self.slider, stretch=1)
+        controls.addWidget(self.btn_prev)
+        controls.addWidget(self.btn_play)
+        controls.addWidget(self.btn_next)
+        controls.addWidget(self.slider, stretch=1)
+        lay.addLayout(controls)
+        # §13.16 D：事件时间线（candidate 醒色刻度，点击 seek）
+        self.timeline = EventTimelineStrip()
+        self.timeline.seekRequested.connect(lambda f: (self.player.pause(),
+                                                       self.player.seek_frame(f, self.fps)))
+        lay.addWidget(self.timeline)
         dock = QDockWidget("播放控制", self)
         dock.setWidget(bar)
         dock.setTitleBarWidget(QWidget())  # 无标题栏
@@ -135,6 +149,9 @@ class MainWindow(QMainWindow):
         self.statusBar().addPermanentWidget(self.progress)
         self.frame_label = QLabel("")
         self.statusBar().addPermanentWidget(self.frame_label)
+        # §13.16 D：比分板（counted 比分 + 候选数）
+        self.score_label = QLabel("")
+        self.statusBar().addPermanentWidget(self.score_label)
 
     def _build_log_dock(self):
         self.log_view = QPlainTextEdit()
@@ -181,13 +198,32 @@ class MainWindow(QMainWindow):
         self.doc_path = path
         self.fps = float(doc.get("fps") or 30.0)
         self.act_team.setEnabled(True)
+        self.act_review.setEnabled(True)
         self.player.set_team_colors(doc.get("team_colors"))
+        # §13.16 D：事件时间线 + 比分板数据分发
+        total = len(doc.get("frames", {}))
+        self.timeline.set_events(doc.get("events") or [], total)
+        self._update_scoreboard()
         self._update_overlay()
+
+    def _update_scoreboard(self):
+        """比分板：counted 比分 + 候选数（§13.16 D）。"""
+        if self.doc is None:
+            self.score_label.setText("")
+            return
+        score = self.doc.get("score") or {}
+        n_cand = sum(1 for e in (self.doc.get("events") or []) if e.get("candidate"))
+        colors = self.doc.get("team_colors") or {}
+        name0 = "红" if colors.get("0") == "red" else ("蓝" if colors.get("0") == "blue" else "队0")
+        name1 = "红" if colors.get("1") == "red" else ("蓝" if colors.get("1") == "blue" else "队1")
+        self.score_label.setText(
+            f"{name0} {score.get('0', 0)} : {score.get('1', 0)} {name1}｜候选 {n_cand}")
 
     # ── 播放与叠加同步 ───────────────────────────────────
     def _on_position_ms(self, ms: int):
         if not self.slider.isSliderDown():
             self.slider.setValue(ms)
+        self.timeline.set_position(self.player.current_frame_index(self.fps))
         self._update_overlay()
 
     def _step(self, delta: int):
@@ -291,3 +327,46 @@ class MainWindow(QMainWindow):
         dlg = TeamOverrideDialog(self.doc, self.doc_path, self)
         dlg.teamsChanged.connect(self._update_overlay)
         dlg.exec()
+
+    # ── 事件复核（§13.16 D）──────────────────────────────
+    def open_review_queue(self):
+        if self.doc is None or not self.doc_path:
+            QMessageBox.information(self, "提示", "尚无分析结果")
+            return
+        dlg = ReviewQueueDialog(self.doc, self.doc_path, self)
+        dlg.frameRequested.connect(lambda f: (self.player.pause(),
+                                              self.player.seek_frame(f, self.fps)))
+        dlg.reviewChanged.connect(self._on_review_changed)
+        dlg.exec()
+
+    def _on_review_changed(self):
+        """R8 接线：复核/改判写回后 CPU 重算事件并刷新时间线与比分板。
+
+        用 --events-only（秒级）同步重算：保留 event_review/team_overrides，
+        不重跑跟踪。失败不阻塞 GUI（旧数据照显）。
+        """
+        self._update_scoreboard()
+        self.timeline.set_events(self.doc.get("events") or [],
+                                 len(self.doc.get("frames", {})))
+        if not self.doc_path or not self.video_path:
+            return
+        import subprocess
+        import sys as _sys
+        root = main_checkout_root()
+        try:
+            r = subprocess.run(
+                [_sys.executable, "-m", "frisbee_analyzer.pipeline",
+                 "--events-only", str(Path(self.doc_path).resolve())],
+                cwd=str(root), capture_output=True, text=True,
+                encoding="utf-8", errors="replace", timeout=300)
+            if r.returncode == 0:
+                doc = json.loads(Path(self.doc_path).read_text(encoding="utf-8"))
+                self.doc = doc
+                self.timeline.set_events(doc.get("events") or [],
+                                         len(doc.get("frames", {})))
+                self._update_scoreboard()
+                self._log("事件已重算（--events-only）")
+            else:
+                self._log(f"事件重算失败 rc={r.returncode}（保留本地结果）")
+        except Exception as e:  # noqa: BLE001
+            self._log(f"事件重算异常: {e}")
