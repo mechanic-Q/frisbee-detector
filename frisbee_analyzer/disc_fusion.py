@@ -293,11 +293,16 @@ def fuse_disc_detections(
                         wx, wy = float(proj[0]), float(proj[1])
                 except Exception:
                     wx = wy = None
-            if world_projector is not None and wx is not None and not is_tracking:
+            # 维度0（§13.19 场线先验）：场外候选全状态拒绝，分两档——
+            #   大出界（场外 >10m，如记分牌/观众席固定假源）无条件拒；
+            #   小出界（≤10m，盘飞出边线的边缘帧）仅搜索态拒（跟踪态交给门控/续接）。
+            if world_projector is not None and wx is not None:
                 m = field_margin_m if field_margin_m is not None else 5.0
-                if not (-m <= wx <= 100 + m and -m <= wy <= 37 + m):
+                out_field = not (-m <= wx <= 100 + m and -m <= wy <= 37 + m)
+                big_out = not (-10 <= wx <= 110 and -10 <= wy <= 47)
+                if big_out or (out_field and not is_tracking):
                     stats.field_rejected += 1
-                    continue  # 场外候选（观众席/记分牌误检）→ 下一候选
+                    continue  # 场外候选 → 下一候选
             speed = None
             if wx is not None and last_world is not None and is_tracking:
                 if gap_relaxed:

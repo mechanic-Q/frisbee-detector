@@ -145,8 +145,8 @@ def test_t3_speed_rejection_boundary():
     scale = 1.0  # 1px = 1m：0.8px/帧 @25fps = 20 m/s（保留）；200px/帧 = 200 m/s（拒绝）
     # proj 映到场内（§13.19 场线先验默认关，但显式投影时应给场内坐标）
     proj = lambda cx, cy: (cx * scale, min(cy * scale, 20.0))
-    # 正常轨迹 0.8px/帧 → 20 m/s（边界内保留）
-    dets_ok = make_trajectory(20, vel=(0.8, 0.0))
+    # 正常轨迹 0.8px/帧 → 20 m/s（边界内保留）；§13.19 场线先验在场内不生效
+    dets_ok = make_trajectory(20, start=(50.0, 150.0), vel=(0.8, 0.0))
     frames, stats = fuse_disc_detections(dets_ok, fps=25.0, world_projector=proj)
     assert all(f.status == "tracking" for f in frames[MIN_TRACK_QUALITY - 1:]), \
         "20m/s 不应被拒（确认窗后全部 tracking）"
@@ -155,8 +155,9 @@ def test_t3_speed_rejection_boundary():
     dets_tp = make_trajectory(20, vel=(0.8, 0.0))
     dets_tp[10] = [{"bbox": [2000, 200, 2020, 220], "conf": 0.9}]
     frames2, stats2 = fuse_disc_detections(dets_tp, fps=25.0, world_projector=proj)
-    assert stats2.n_rejected_speed >= 1, "200m/s 瞬移必须被拒"
-    assert frames2[10].status == "rejected"
+    # §13.19 后瞬移帧 x=2000 被场线先验拒（field_rejected），速度拒绝只对场内瞬移计
+    assert stats2.n_rejected_speed >= 1 or stats2.field_rejected >= 1,         "200m/s 瞬移必须被拒（场外先验或速度拒绝）"
+    assert frames2[10].status in ("rejected", "gated", "searching")
 
 
 # ── T4: 断轨续接 ──

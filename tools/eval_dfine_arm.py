@@ -119,6 +119,8 @@ def main() -> int:
                             "cx": round(f.cx, 1), "cy": round(f.cy, 1), "status": f.status,
                             "source": f.source}
     (out_dir / "disc_frames.json").write_text(json.dumps(disc), encoding="utf-8")
+    (out_dir / "disc_seq_raw.json").write_text(
+        json.dumps({str(i): d for i, d in enumerate(seq) if d}), encoding="utf-8")
 
     # 可见区间口径
     vis = {int(k) for k in json.loads(
