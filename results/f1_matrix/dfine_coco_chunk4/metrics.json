@@ -1,0 +1,21 @@
+{
+ "tag": "dfine_coco",
+ "weights": "data/bili_final_test/dfine_small_out/best_stg1.pth",
+ "conf_threshold": 0.7,
+ "fusion_stats": {
+  "n_frames": 3600,
+  "n_tracking": 410,
+  "n_predicting": 778,
+  "n_gated": 227,
+  "n_rejected_speed": 215,
+  "n_lost": 28,
+  "n_searching": 1999,
+  "n_tracks": 1,
+  "longest_track_frames": 206,
+  "field_rejected": 28
+ },
+ "P_inpipe_given_visible": 0.3305,
+ "P_tracking_given_visible": 0.1143,
+ "inpipe_all": 0.33,
+ "visible_frames": 2965
+}

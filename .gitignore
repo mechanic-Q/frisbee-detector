@@ -149,3 +149,6 @@ results/wfdf_eval_*.log
 results/wfdf_eval/*/tracks.json
 
 data/bili_final_test/dfine_obj365/
+results/f1_matrix/eval_dfine_coco_conf05.log
+results/f1_matrix/eval_dfine_coco_conf06.log
+results/f1_matrix/eval_dfine_coco_conf07.log
