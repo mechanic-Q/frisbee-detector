@@ -842,3 +842,29 @@ GUI 会话（.worktrees/gui-v0）在 09-09 自治窗口完成 **7 轮带验收�
 **诚实注记**：chunk0 恢复窗 [1800,3000) 与 t=30.8（帧 924）不同窗——跨窗应用标定有机位漂移风险，dt 9.8s 的匹配在 ±90s GT 精度口径内成立但非逐帧精度；攻守方向的队伍绑定仍是单例校准（G4），端区侧向跨 chunk 一致性未证明（players-extent 的 x 轴朝向各段独立）。
 
 **转正裁定更新**：端区规则维持 candidate+复核；持盘补全通道在源感知守卫下**具备转正条件**（伪造记分已结构性堵住），可在生产配置开启并随复核队列运行。
+
+### 13.16 统计层攻坚：七指标落地 + 引擎三修 + 外部实践对照（09-12）
+
+**背景**：用户提出七个分析问题（飞行距离/换手率/控盘占比/两队热力图/得分手/组织者/威胁进攻发起）并确认根因"盘经常识别不到"。计划前完成两轮外部调研（SAHI/TrackNet 文献、UFA 统计口径/USAU 规则/SoccerAction/mplsoccer/SoccerNet），**四处硬纠正**全部吸收。
+
+**外部实践对照（引注见 PR 描述）**：
+1. **USAU 9.B 规则纠正**：得分后两队攻防方向**立即互换**（得分方拉盘），非半场换向——原"halftime_frame 换向"设计作废，改为引擎内 counted 得分自动翻转 end_zones + 标定可选键 team_left（开局方向）/halftime_frame（半场恢复初始选边）。
+2. **SAHI 事实标准**：切片-整帧合并用 IOS-GreedyNMM（交叠比，对 1-2px 抖动稳）；2×2+20% overlap 仅 ~1.6× 像素成本；"低置信触发切片"=Dynamic Zoom-in 成熟思想。
+3. **跟踪文献惯例**：门控重试按马氏距离序（运动一致性选优）而非 conf 序；top-K+开轨确认=轻量延迟决策（不必上 MHT/JPDA）。
+4. **统计口径**：换手率双口径（turnovers/throws 与 /possessions，UFA 官方）；热力图 25×25+σ1 高斯（mplsoccer）；威胁发起=hockey-assist 链上定义；pitch_kp 验收对标 SoccerNet SOTA JaC@5≈70-75%（真实转播帧 SOTA 上限）。
+
+**压测发现的 P0 修复（三修）**：
+- **C0 得分锁**：`_score_lock` 首得分后永锁（notify_pull 生产零调用）→ compute_events 冷却窗（默认 300f=10s）自动 pull 解锁，PULL 以 auto-pull 标记入输出；链式统计不再截断。单测验证 200 帧循环 4 个 score-pull 周期。
+- **开轨确认负结果**：MIN_TRACK_QUALITY=3 使 chunk1 短轨迹 tracking -42%（483→280）——本素材假盘锁轨非主要矛盾，默认=1 关闭（诚实账），常量保留 monkeypatch 验证。
+- **R7 事件黑洞**：--auto-calibrate 单独使用时事件根本不计算 → 段内标定产物自动接入 + `--events-only` CPU 秒级重算 CLI（保留 event_review/team_overrides）。
+
+**交付（五提交，226+2 测试绿）**：
+- Phase A（31ed360）：盘切片补召回 `--disc-tile-grid/trigger/topk` 三档触发 + IOS-NMM + 马氏序门控重试 + tile 搜索态准入 + **disc_raw 持久化**（此后全链条 CPU 复算）。chunk1b 门通过：tracking 607 vs 599（+8）、ROI 增益 +70（门控重试放大）、gated 持平、无回退。**tile 触发机制正常但 chunk1 无检出帧系"盘不在画面"（f52 连 conf0.05 都无检出）**——召回增益待 WFDF 素材验证。
+- Phase A2（ce53beb）：holder_track 印章全链透传（合成观测直接归属持盘人）。
+- Phase B（dcae8e7）：USAU 9.B 逐分翻转 + event_review schema 冻结（naming-glossary 词汇，"— 未复核 —"占位防误写）+ infer_team_left 反推。
+- Phase C（e45ecfd）：`tools/match_stats.py` 七指标——飞行距离（tracking-only 硬过滤）/换手率双口径/控盘占比/两队热力图（25×25+σ1，chunk1b 实测两队峰值 x=42/58m 各踞半场）/得分手/hockey-assist 组织者/威胁链起点；统一证据策略+provenance。
+- Phase D（5768c5e）：GUI 事件时间线（candidate 醒色刻度点击 seek）+ 比分板 + 复核队列（写回即 --events-only 重算刷新，R8）——offscreen SMOKE PASS。
+
+**泳道并行执行**：N 泳道 T0 下载 WFDF 2017 决赛（BV16B4y1M7zd，136min，已 gitignored）→ G 泳道 gpu_run 队列串行验证 → M 泳道编码不断（GPU 忙时写 C0/B）→ P 泳道后台 CPU 重算。外部调研由 2 个并行子代理完成。
+
+**遗留**：① WFDF 2017 未见素材定性终评（试跑排队中）；② 全量 5 chunk Phase A 版重跑（队列中）；③ pitch_kp 训练（JaC@5 70-75% 预期）未排；④ tile 增益需"盘在画面漏检"素材实证；⑤ GUI 真机复核闭环人工走查。
