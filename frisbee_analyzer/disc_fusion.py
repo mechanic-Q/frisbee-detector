@@ -254,16 +254,26 @@ def fuse_disc_detections(
             order = sorted(
                 range(len(cands)),
                 key=lambda i: math.hypot(cands[i][0] - pred_pt[0], cands[i][1] - pred_pt[1]))
-        # §13.18 续接放宽：断档越久预测漂移越大（常数速度外推会把预测点带飞——
-        # 盘被接住会停而外推不停）。断档 >3 帧（**无候选帧**，门拒帧不积累——
-        # 有候选说明盘在画面只是被拒，那是门控问题）后改用**最后观测点邻域**
-        # 判据：欧氏圆（半径随时长放大、上限封顶）；≤3 帧仍走马氏。
-        gap_relaxed = is_tracking and no_det_streak > 3
+        # §13.18 续接放宽（两条触发路）：①断档 >3 帧无候选（盘出画/遮挡后回来）
+        # ②**连续门拒 ≥3 帧**（§13.18 实测：高速飞行段 Kalman 速度滞后致系统性
+        # 误杀——f753-767 连续 15 帧把 0.71-0.83 高分真盘全拒，直到续接圆接管才
+        # 恢复）。两路共用最后观测点+速度外推的邻域圆判据；邻域半径按各自
+        # 断档/拒帧时长放大、上限封顶。
+        gated_streak = lost_counter if no_det_streak == 0 else 0
+        gap_relaxed = is_tracking and (no_det_streak > 3 or gated_streak > 3)
         gate_eff = gate_threshold
         reacq_center = reacq_radius = None
         if gap_relaxed:
-            gap_s = (no_det_streak + 1) / max(fps, 1e-6)
-            reacq_center = (last_obs_pt if last_obs_pt else pred_pt)
+            streak = no_det_streak if no_det_streak > 0 else gated_streak
+            gap_s = (streak + 1) / max(fps, 1e-6)
+            # 圆心：有速度估计时用"最后观测+外推"（盘在飞），否则最后观测点
+            vx_k, vy_k = kf.velocity() if kf.initialized else (0.0, 0.0)
+            base_pt = last_obs_pt if last_obs_pt else pred_pt
+            if base_pt is not None:
+                lead = min(streak, 10)  # 外推只领先有限帧（防长链外推飞出）
+                reacq_center = (base_pt[0] + vx_k * lead, base_pt[1] + vy_k * lead)
+            else:
+                reacq_center = pred_pt
             reacq_radius = min(REACQ_RADIUS_BASE + REACQ_RADIUS_PER_S * gap_s,
                                REACQ_RADIUS_CAP)
         accepted = None

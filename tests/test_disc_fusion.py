@@ -119,16 +119,19 @@ def test_t2_outliers_gated_and_track_recovers():
 
 
 def test_t2_gate_threshold_respected():
-    """门控阈值参数化生效：threshold→0 时跟踪态帧被 gate；达到 LOST 上限后轨迹重置（防永久锁死）。"""
+    """门控阈值参数化生效；连续门拒 ≥3 帧后圆判据接管（§13.18 门拒续接）。
+
+    旧行为"极小阈值大量 gate"已被 §13.18 门拒续接取代——门拒 3 帧即触发
+    最后观测点+外推圆判据，真盘候选（圆内）被接回 tracking。断言改为：
+    确认仍有 gate 帧产生（机制存在），且轨迹存活（不破产）。
+    """
     dets = make_trajectory(50)
     frames, stats = fuse_disc_detections(dets, fps=25.0, gate_threshold=0.0001)
     gated = [f for f in frames if f.status == "gated"]
-    assert len(gated) >= 10, f"极小阈值应大量 gate: {len(gated)}"
-    # §13.16 重试语义：n_gated=帧级降级计数；轨迹破产帧（lost→searching）不计入 gated 帧
-    assert stats.n_gated >= len(gated)
-    # 重置后 track_len<2 不门控 → 50 帧内必有非 gated 帧（轨迹重生窗口）
-    non_gated = [f for f in frames if f.status != "gated"]
-    assert len(non_gated) >= 2
+    assert len(gated) >= 1, "极小阈值初期应产生 gate 帧"
+    trk = [f for f in frames if f.status == "tracking"]
+    assert len(trk) >= 20, f"门拒续接应保住轨迹: {len(trk)} tracking"
+    assert stats.longest_track_frames >= 20
 
 
 # ── T3: 速度拒绝 ──
