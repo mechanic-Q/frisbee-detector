@@ -19,6 +19,7 @@ sys.path.insert(0, ".")
 
 from frisbee_analyzer import disc_fusion
 from frisbee_analyzer.disc_fusion import (
+    MIN_TRACK_QUALITY,
     DiscFrame,
     FusionStats,
     Kalman2D,
@@ -123,7 +124,8 @@ def test_t2_gate_threshold_respected():
     frames, stats = fuse_disc_detections(dets, fps=25.0, gate_threshold=0.0001)
     gated = [f for f in frames if f.status == "gated"]
     assert len(gated) >= 10, f"极小阈值应大量 gate: {len(gated)}"
-    assert stats.n_gated == len(gated)
+    # §13.16 重试语义：n_gated=帧级降级计数；轨迹破产帧（lost→searching）不计入 gated 帧
+    assert stats.n_gated >= len(gated)
     # 重置后 track_len<2 不门控 → 50 帧内必有非 gated 帧（轨迹重生窗口）
     non_gated = [f for f in frames if f.status != "gated"]
     assert len(non_gated) >= 2
@@ -132,13 +134,18 @@ def test_t2_gate_threshold_respected():
 # ── T3: 速度拒绝 ──
 
 def test_t3_speed_rejection_boundary():
-    """带投影函数时：>25 m/s 的瞬移观测被 rejected，≤20 m/s 正常接受。"""
+    """带投影函数时：>25 m/s 的瞬移观测被 rejected，≤20 m/s 正常接受。
+
+    §13.16 开轨确认：MIN_TRACK_QUALITY=3 帧内输出 searching，故断言限定
+    确认窗之后的帧（轨迹前 2 帧不产生 tracking 输出）。
+    """
     scale = 1.0  # 1px = 1m：0.8px/帧 @25fps = 20 m/s（保留）；200px/帧 = 200 m/s（拒绝）
     proj = lambda cx, cy: (cx * scale, cy * scale)
     # 正常轨迹 0.8px/帧 → 20 m/s（边界内保留）
     dets_ok = make_trajectory(20, vel=(0.8, 0.0))
     frames, stats = fuse_disc_detections(dets_ok, fps=25.0, world_projector=proj)
-    assert all(f.status == "tracking" for f in frames), "20m/s 不应被拒"
+    assert all(f.status == "tracking" for f in frames[MIN_TRACK_QUALITY - 1:]), \
+        "20m/s 不应被拒（确认窗后全部 tracking）"
     assert stats.n_rejected_speed == 0
     # 瞬移：第 10 帧跳 200px → 200 m/s（必须拒绝）
     dets_tp = make_trajectory(20, vel=(0.8, 0.0))

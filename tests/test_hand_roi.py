@@ -113,14 +113,15 @@ def test_merge_iou_boundary_exact():
 # ── 融合层 source 透传 ──
 
 def test_fusion_passes_source_through():
-    # 搜索态起轨：三帧同位 ROI 检出（MIN_TRACK 语义下 accepted 即 tracking）
-    dets = [[{"bbox": [100, 100, 110, 110], "conf": 0.7, "source": "hand_roi"}]] * 3
+    # 搜索态起轨：5 帧同位 ROI 检出（§13.16 开轨确认：前 MIN_TRACK_QUALITY-1 帧为
+    # searching，确认后输出 tracking 且 source 透传）
+    dets = [[{"bbox": [100, 100, 110, 110], "conf": 0.7, "source": "hand_roi"}]] * 5
     fused, _ = fuse_disc_detections(dets, fps=30.0)
-    assert all(f.status == "tracking" for f in fused)
-    assert all(f.source == "hand_roi" for f in fused)
+    assert [f.status for f in fused] == ["searching"] * 2 + ["tracking"] * 3
+    assert all(f.source == "hand_roi" for f in fused if f.status == "tracking")
 
 
 def test_fusion_main_channel_source_none():
-    dets = [[{"bbox": [100, 100, 110, 110], "conf": 0.7}]] * 3
+    dets = [[{"bbox": [100, 100, 110, 110], "conf": 0.7}]] * 5
     fused, _ = fuse_disc_detections(dets, fps=30.0)
     assert all(f.source is None for f in fused)
