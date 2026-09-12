@@ -817,3 +817,16 @@ GUI 会话（.worktrees/gui-v0）在 09-09 自治窗口完成 **7 轮带验收�
 **工具沉淀**：`tools/eval_window_gt.py`（窗口 GT 对齐）、`tools/s2_aggregate.py`（分块聚合+新颖性链+全局匹配）、`tools/summarize_events.py`（事件汇总）。
 
 **遗留**：① chunk0 标定恢复（子窗重标定/pitch_kp）可把 R 提到 1.0 待验证；② 攻守方向自动判定（队伍↔端区绑定）；③ 伪候选根治 = pitch_kp 标定升级 或 Stage 3 持盘分类器；④ 半场换向未处理（窗口内单半场安全）。
+
+### 13.14 Stage 3 持盘补全：possession 覆盖可提升，但自动记分伪造风险实测在案（09-12）
+
+**方案自纠正**：原计划"持盘行为分类器"降级——§13.13 实证世界坐标近距噪声 ~7m、且盲区 crop 外观信号弱；改为**算法优先的持盘补全**（`frisbee_analyzer/possession_impute.py`，`--possession-impute` 默认关，7 单测）：融合 degraded 段若像素锚点稳定落在唯一球员框内（同 track_id 连续 + 步行以下速度门 + 身份歧义弃 + 段上限 90f），把持有者手部点（脚点世界坐标+1.3m 反投影，视差校正）合成盘观测（source="possession_imputed"）并入序列二次融合。锚点跟随持有者（follow_holder，迭代2）覆盖走动持盘。
+
+**验证（G4 60s + 4 个 2min 分块配对对照）**：
+- 通道选择性符合设计：1208/2879 anchors 只在"盘消失在球员身上"时补全（空中丢失正确拒绝）；G4 仅 2 段 6 帧（站立得分段已由真实检出覆盖）；chunk1 16 段 154 帧（tracking 581→599，**最长轨迹 25f→58f**）。
+- **正面**：chunk1/3 持盘事件 0→2、1→3；chunk4 无扰动；无新增假端区候选。
+- **负面（在案）**：**chunk2 仅 11 帧补全经单轨融合级联，伪造出一个 team0 状态机得分**（与记分牌 GT 1:2 矛盾，该窗口无北京得分）——合成观测改变级联后状态机可在错误位置记分。
+
+**裁定**：通道**保持默认关**；possession 覆盖收益真实（+2/+2 事件、轨迹 2.3 倍）但自动记分伪造风险 1/4 分块实测在案。转正前置 = **源感知记分门**（events_runner 传递 disc 观测 source；持盘段含 imputed 帧时状态机 score 降级为 candidate 进复核队列，不进 eng.score）+ 复核队列 UI。分类器路线保留为可选验证器（对 imputed 段做外观二次确认）。
+
+**Stage 4 TrackNetV3**：决策门维持 parked（Stage 2 miss 根因是标定与 GT 结构，非远景召回）。

@@ -72,6 +72,8 @@ def run(args, stream=None) -> int:
     frames: dict[str, list] = {}
     disc_frames: dict[str, dict] = {}
     disc_seq: list[tuple[int, dict | None]] = []  # (frame_idx, d_det) 原始序列，供融合层用
+    fused_cur = None   # 当前最优融合结果（hand-roi/补全可能覆盖）
+    seq_cur = None     # 与 fused_cur 对应的逐帧检测序列
     if getattr(args, "disc_weights", None):
         # 双模型路径：球员 + 飞盘联合跟踪（事件统计的前提，见 docs/2026-09-09-engine-validation.md）
         from .tracking import iter_player_and_disc_tracks
@@ -138,6 +140,7 @@ def run(args, stream=None) -> int:
             seq, fps=info["fps"], world_projector=proj,
             width=info["width"], height=info["height"],
         )
+        fused_cur, seq_cur = fused, seq
         new_disc = _fused_to_disc_doc(fused)
         protocol.emit(protocol.log(
             f"disc-fusion: tracking={fstats.n_tracking} predicting={fstats.n_predicting} "
@@ -164,6 +167,7 @@ def run(args, stream=None) -> int:
                 seq2, fps=info["fps"], world_projector=proj,
                 width=info["width"], height=info["height"],
             )
+            fused_cur, seq_cur = fused2, seq2
             new_disc2 = _fused_to_disc_doc(fused2)
             n_roi_src = sum(1 for v in new_disc2.values() if v.get("source") == "hand_roi")
             protocol.emit(protocol.log(
@@ -238,6 +242,40 @@ def run(args, stream=None) -> int:
         total_after = sum(len(d) for d in frames.values())
         route = "polygon(calibrated)" if matrix is not None else f"heuristic(min_y_frac={args.min_y_frac})"
         protocol.emit(protocol.log(f"field filter({route}): {total_before} -> {total_after} dets"), stream)
+
+    # F1 第三通道（--possession-impute，默认关）：持盘补全。融合 degraded 段若像素
+    # 锚点稳定落在唯一球员框内（同 track_id、步行以下速度），合成该球员手部点的
+    # 盘观测二次融合——状态机因此能持续看见被身体遮挡的持盘（§13.14）。需要标定
+    # （auto-calibrate 产物或 --calibration）做视差校正，无标定则跳过。
+    if getattr(args, "possession_impute", False) and fused_cur is not None:
+        if matrix is None:
+            protocol.emit(protocol.log(
+                "possession-impute: 需要标定（--auto-calibrate PASS 或 --calibration），跳过"), stream)
+        else:
+            from .possession_impute import impute_possession
+            from .hand_roi import merge_hand_roi_detections
+            from utils.homography import world_to_pixel, pixel_to_world as _p2w
+
+            players_by_frame = {int(k): v for k, v in frames.items()}
+            extra, imp_stats = impute_possession(
+                fused_cur, players_by_frame,
+                world_to_pixel=lambda wx, wy: world_to_pixel(matrix, wx, wy),
+                pixel_to_world=lambda px, py: _p2w(matrix, px, py),
+                max_gap=args.impute_max_gap, max_streak=args.impute_max_streak,
+            )
+            seq3, _ = merge_hand_roi_detections(seq_cur, extra)
+            fused3, fstats3 = fuse_disc_detections(
+                seq3, fps=info["fps"], world_projector=proj,
+                width=info["width"], height=info["height"],
+            )
+            before = len(disc_frames)
+            disc_frames = _fused_to_disc_doc(fused3)
+            n_imp = sum(1 for v in disc_frames.values() if v.get("source") == "possession_imputed")
+            protocol.emit(protocol.log(
+                f"possession-impute: anchors={imp_stats.anchor_frames} streaks={imp_stats.streaks} "
+                f"imputed={imp_stats.frames_imputed}f -> tracking "
+                f"{fstats3.n_tracking}, longest {fstats3.longest_track_frames}f, "
+                f"disc_frames {before}->{len(disc_frames)} (imputed-source {n_imp})"), stream)
 
     out_dir = Path(args.output_dir) if args.output_dir else Path("runs/gui_analysis") / Path(video).stem
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -330,6 +368,13 @@ def main(argv=None) -> int:
                         help="距最后观测 ≤ 此帧数才复检（默认 120）")
     parser.add_argument("--hand-roi-k", type=int, default=None,
                         help="每帧最多复检的最近球员数（默认 2）")
+    parser.add_argument("--possession-impute", action="store_true",
+                        help="F1 持盘补全：融合 degraded 段锚点落在唯一球员框内时合成手部点盘观测"
+                             "（需标定，默认关）")
+    parser.add_argument("--impute-max-gap", type=int, default=None,
+                        help="距最后观测 ≤ 此帧数才补全（默认 150）")
+    parser.add_argument("--impute-max-streak", type=int, default=None,
+                        help="单段最多连续补全帧数（默认 90）")
     parser.add_argument("--auto-calibrate", action="store_true",
                         help="F1 段内自动标定：用本次 run 的球员脚点云现场标定（默认关；"
                              "给出时优先于 --calibration，过 0.85 内点率门才生效）")
@@ -347,13 +392,17 @@ def main(argv=None) -> int:
     if args.hand_roi:
         args.disc_fusion = True  # 手部 ROI 定义在融合态之上，隐含开启
     if any(getattr(args, a) is None for a in
-           ("hand_roi_conf", "hand_roi_imgsz", "hand_roi_max_gap", "hand_roi_k")):
+           ("hand_roi_conf", "hand_roi_imgsz", "hand_roi_max_gap", "hand_roi_k",
+            "impute_max_gap", "impute_max_streak")):
         from . import hand_roi as _hr
+        from . import possession_impute as _pi
 
         args.hand_roi_conf = args.hand_roi_conf if args.hand_roi_conf is not None else _hr.HAND_ROI_CONF
         args.hand_roi_imgsz = args.hand_roi_imgsz if args.hand_roi_imgsz is not None else _hr.HAND_ROI_IMGSZ
         args.hand_roi_max_gap = args.hand_roi_max_gap if args.hand_roi_max_gap is not None else _hr.HAND_ROI_MAX_GAP
         args.hand_roi_k = args.hand_roi_k if args.hand_roi_k is not None else _hr.HAND_ROI_K
+        args.impute_max_gap = args.impute_max_gap if args.impute_max_gap is not None else _pi.IMPUTE_MAX_GAP
+        args.impute_max_streak = args.impute_max_streak if args.impute_max_streak is not None else _pi.IMPUTE_STREAK
 
     try:
         if args.team_only:

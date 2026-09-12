@@ -133,3 +133,6 @@ results/f1_matrix/s2_accept10min/
 results/f1_matrix/_probe_*.jpg
 data/bili_final_test/accept_chunk_*.mp4
 data/bili_final_test/accept_chunk_*.mp4-0*
+results/f1_matrix/g4_impute480.log
+results/f1_matrix/s2_chunk*_impute.log
+results/f1_matrix/s2_chunk*_impute/
