@@ -72,14 +72,23 @@ def test_full_frame_low_conf_still_admitted():
 
 # ── 开轨确认 ──
 
-def test_track_confirmation_window():
-    """单帧假盘不得立即锁轨：前 MIN_TRACK_QUALITY-1 帧输出 searching。"""
-    from frisbee_analyzer.disc_fusion import MIN_TRACK_QUALITY
+def test_track_confirmation_window(monkeypatch):
+    """开轨确认：MIN_TRACK_QUALITY>1 时单帧假盘不成轨（§13.16 设计）。
+
+    默认 =1（关闭）：chunk1 实测 =3 时短轨迹 tracking -42%，弊大于利（诚实账
+    见 §13.16）；常量保留，monkeypatch 验证机制本身。
+    """
+    from frisbee_analyzer import disc_fusion
+
     one = [[{"bbox": [50, 50, 66, 66], "conf": 0.9}]]  # 只出现 1 帧
     fused, _ = fuse_disc_detections(one, fps=30.0)
-    assert all(f.status == "searching" for f in fused), "单帧不得成轨"
+    assert fused[0].status == "tracking", "默认确认=1 时单帧即成轨（旧行为）"
 
-    three = [[{"bbox": [50, 50, 66, 66], "conf": 0.9}]] * MIN_TRACK_QUALITY
+    monkeypatch.setattr(disc_fusion, "MIN_TRACK_QUALITY", 3)
+    fused1, _ = fuse_disc_detections(one, fps=30.0)
+    assert all(f.status == "searching" for f in fused1), "确认窗>1 时单帧不得成轨"
+
+    three = [[{"bbox": [50, 50, 66, 66], "conf": 0.9}]] * 3
     fused3, _ = fuse_disc_detections(three, fps=30.0)
     assert fused3[-1].status == "tracking", "确认窗后应升级 tracking"
 

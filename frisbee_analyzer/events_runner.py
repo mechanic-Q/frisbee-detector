@@ -193,6 +193,7 @@ def compute_events(doc: dict, calibration_path: Path,
     out_events = []
     margin = 5.0  # 米：场地外缓冲
     disc_rejected = 0
+    last_score_frame: int | None = None  # C0 冷却解锁锚点
     for fk in sorted(frames, key=int):
         idx = int(fk)
         players = []
@@ -218,6 +219,25 @@ def compute_events(doc: dict, calibration_path: Path,
                 "x": round(e.x, 2), "y": round(e.y, 2), "detail": e.detail,
                 "candidate": e.candidate,
             })
+            # C0（§13.16）：引擎得分后自动 pull 解锁——_score_lock 原本永锁
+            # （notify_pull 生产零调用），第一个得分后 TRANSFER/TURNOVER/POSSESSION
+            # 全部停发。按冷却窗（默认 10s，防庆祝走动误选举）解锁继续统计。
+            # USAU 9.B：得分后攻防方向翻转，由 Phase B 的 end-zone 翻转层处理。
+            if e.type is EventType.SCORE:
+                last_score_frame = idx
+
+        if (last_score_frame is not None
+                and idx - last_score_frame >= (config or PossessionConfig()).score_cooloff_frames
+                and eng._score_lock):
+            # C0 解锁（自动 pull）；产出的事件补进输出（notify_pull 不经 update 循环）
+            pe = eng.notify_pull(idx, x=disc.x if disc else 0.0, y=disc.y if disc else 0.0)
+            out_events.append({
+                "type": pe.type.value, "frame": pe.frame, "t_sec": round(pe.frame / fps, 2),
+                "from_track": pe.from_track, "to_track": pe.to_track, "team": pe.team,
+                "x": round(pe.x, 2), "y": round(pe.y, 2), "detail": "auto-pull (score cooloff)",
+                "candidate": pe.candidate,
+            })
+            last_score_frame = None
 
     # F1 多维互证·几何维度: 端区慢速持盘走段 → 得分候选（复核队列）
     for cand in detect_endzone_carries(doc, H, fw, fh, ez, fps):

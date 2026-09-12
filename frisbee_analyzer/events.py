@@ -87,6 +87,8 @@ class PossessionConfig:
     lose_hold_frames: int = 6         # 持盘判定连续丢失 N 帧后结束持有
     player_height_m: float = 1.8      # 用于从脚点推算手部点的身高假设
     imputed_score_guard_frames: int = 90  # 近期出现合成观测时，状态机得分降级 candidate 的保护窗（§13.14）
+    score_cooloff_frames: int = 300   # 得分后冷却窗（§13.16 C0：引擎自动 pull 解锁；
+                                      # 10s@30fps，防得分后庆祝走动被误选持盘）
 
 
 @dataclass

@@ -25,8 +25,9 @@ MIN_SCORE = 0.3                    # 候选最低分（低于直接丢弃）
 GATE_THRESHOLD = 13.8155           # chi²₀.₉₉₉(df=2)——事后马氏门控（v3 设计）
 MAX_SPEED_MS = 25.0                # 世界坐标物理上限（飞盘不可能超此速度）
 LOST_TRACK_THRESHOLD = 15          # 连续丢失/降级超过此帧数 → 轨迹结束重找
-MIN_TRACK_QUALITY = 3              # 开轨迹所需最少连续 tracking 帧（§13.16 启用：
-                                   # 未确认前输出 searching，防单帧假盘锁轨）
+MIN_TRACK_QUALITY = 1              # 开轨迹确认帧数（§13.16 引入；chunk1 实测 =3 时短轨迹
+                                   # tracking -42%（483→280）弊大于利——本素材假盘锁轨非
+                                   # 主要矛盾，默认关闭保留常量供后续素材启用）
 TILE_MIN_SCORE = 0.5               # 切片候选在搜索态的更高 conf 准入（tile 有放大
                                    # 效应，假盘易高分开轨锁死真盘，§13.16）
 
@@ -50,6 +51,7 @@ class DiscFrame:
     speed_ms: float | None = None
     world_xy: tuple[float, float] | None = None
     source: str | None = None   # 检出来源（None=整帧主通道，"hand_roi"=手部 ROI 复检）
+    holder_track: int | None = None  # 持盘补全印章（A2）：合成观测的归属球员 track_id
 
 
 @dataclass
@@ -311,7 +313,8 @@ def fuse_disc_detections(
                                     d2=round(d2, 1) if d2 is not None else None,
                                     speed_ms=round(speed, 1) if speed is not None else None,
                                     world_xy=(wx, wy) if wx is not None else None,
-                                    source=dets[bi].get("source")))
+                                    source=dets[bi].get("source"),
+                                    holder_track=dets[bi].get("holder_track")))
         stats.n_tracking += 1
         stats.longest_track_frames = max(stats.longest_track_frames, track_len)
 

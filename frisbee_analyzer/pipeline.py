@@ -49,6 +49,8 @@ def _fused_to_disc_doc(fused) -> dict[str, dict]:
                 entry["world_xy"] = [round(f.world_xy[0], 2), round(f.world_xy[1], 2)]
             if f.source:
                 entry["source"] = f.source
+            if f.holder_track is not None:
+                entry["holder_track"] = f.holder_track
             out[str(idx)] = entry
     return out
 
@@ -142,12 +144,13 @@ def run(args, stream=None) -> int:
             except Exception as e:  # noqa: BLE001
                 protocol.emit(protocol.log(f"disc-fusion: calibration ignored ({e})"), stream)
 
-        # 还原成逐帧序列（含空帧；候选列表带 source 直通融合层）
+        # 还原成逐帧序列（含空帧；候选列表带 source/holder 直通融合层）
         seq: list[list[dict]] = []
         for _idx, d_dets in disc_seq:
             seq.append([{"bbox": list(d["bbox"]),
                          "conf": float(d.get("conf", 0.0)),
-                         **({"source": d["source"]} if d.get("source") else {})}
+                         **({"source": d["source"]} if d.get("source") else {}),
+                         **({"holder_track": d["holder_track"]} if d.get("holder_track") is not None else {})}
                         for d in d_dets])
         fused, fstats = fuse_disc_detections(
             seq, fps=info["fps"], world_projector=proj,

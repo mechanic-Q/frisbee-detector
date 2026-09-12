@@ -151,6 +151,8 @@ def impute_possession(fused, players_by_frame: dict[int, list[dict]],
                              round(hp[0] + s, 1), round(hp[1] + s, 1)],
                     "conf": IMPUTE_CONF,
                     "source": "possession_imputed",
+                    # holder 印章（§13.16 A2）：统计层直接归属持盘人，不改引擎
+                    "holder_track": holder_tid,
                 }]
                 stats.frames_imputed += 1
             stats.holder_frames += len(streak_frames)
