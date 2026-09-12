@@ -76,6 +76,8 @@ frisbee_analyzer/ → pipeline.py (worker CLI) + protocol.py (消息协议) + tr
                     + team.py (SigLIP+UMAP+KMeans 分队) + events.py (事件状态机：持盘/交换/攻转/得分/pull，7 事件类型)
                     + events_runner.py (标定→单应映射→喂引擎适配层 + 端区持盘得分候选规则)
                     + disc_fusion.py (盘轨迹 Kalman 融合：评分关联+马氏门控+断轨续接，--disc-fusion)
+                    + hand_roi.py (手部 ROI 高分辨率复检第二通道，--hand-roi；持盘盲区负结果已定案 §13.12)
+                    + possession_impute.py (持盘补全合成观测，--possession-impute 默认关：伪造记分风险在案 §13.14)
                     + segment_calib.py (段内自动标定 players-extent DLT，--auto-calibrate) + filters.py (场内过滤)
 configs/          → paths.py (RESEARCH_ROOT, PROJECT_ROOT), models.py (DEFAULT_MODEL)
 utils/            → dataset.py (YAML gen, split), io.py (safe copy/write)
