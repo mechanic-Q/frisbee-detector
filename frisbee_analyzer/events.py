@@ -40,6 +40,7 @@ class DiscObservation:
     y: float
     conf: float = 1.0
     frame: int = -1
+    source: Optional[str] = None   # None=真实检出；"possession_imputed"=持盘补全合成（§13.14）
 
 
 @dataclass
@@ -52,6 +53,7 @@ class Event:
     x: float = 0.0
     y: float = 0.0
     detail: str = ""
+    candidate: bool = False        # True=复核队列候选（不计入 score，如端区规则/源感知守卫）
 
 
 @dataclass
@@ -84,6 +86,7 @@ class PossessionConfig:
     ground_min_frames: int = 8        # 落地判定需要的持续帧数
     lose_hold_frames: int = 6         # 持盘判定连续丢失 N 帧后结束持有
     player_height_m: float = 1.8      # 用于从脚点推算手部点的身高假设
+    imputed_score_guard_frames: int = 90  # 近期出现合成观测时，状态机得分降级 candidate 的保护窗（§13.14）
 
 
 @dataclass
@@ -125,6 +128,7 @@ class MatchEventEngine:
         self.events: list[Event] = []
         # 攻防方向: end_zones[i].team_attacking 即该区被哪个队攻击
         self._score_lock = False
+        self._imputed_seen_frame: Optional[int] = None  # 最近一次合成盘观测的帧号（源感知记分门）
 
     # ---------- 对外主入口 ----------
     def update(self, frame: int, players: Sequence[Player], disc: Optional[DiscObservation]) -> list[Event]:
@@ -138,6 +142,10 @@ class MatchEventEngine:
             return self.last_events
 
         disc_speed = self._disc_speed(disc)
+
+        # 源感知记分门：记录最近一次合成观测帧号（§13.14 实测补全可经级联伪造记分）
+        if disc is not None and disc.source == "possession_imputed":
+            self._imputed_seen_frame = frame
 
         # 1) 候选持盘人（最近手部点 + 盘速约束）
         cand_id, cand_dist = self._nearest_hand(players, disc) if disc else (None, None)
@@ -265,12 +273,24 @@ class MatchEventEngine:
             return
         for ez in self.ezs:
             if ez.team_attacking == team and ez.contains(p.x, p.y):
-                self.score[team] += 1
+                # 源感知记分门：保护窗内有合成观测 → 降级为候选，不计入 score。
+                # 实测（§13.14 chunk2）：少量补全观测经融合级联即可把轨迹带到错误
+                # 位置伪造记分；候选仍进复核队列（candidate=True）。
+                guarded = (self._imputed_seen_frame is not None
+                           and self.frame - self._imputed_seen_frame
+                           <= self.cfg.imputed_score_guard_frames)
                 self._score_lock = True
-                self._emit(Event(EventType.SCORE, self.frame, to_track=p.track_id, team=team,
-                                 x=p.x, y=p.y, detail=f"score={dict(self.score)}"))
                 self.holder = None
                 self._ground_streak = 0
+                if guarded:
+                    self._emit(Event(EventType.SCORE, self.frame, to_track=p.track_id, team=team,
+                                     x=p.x, y=p.y, candidate=True,
+                                     detail=f"imputed-guard ({self.frame - self._imputed_seen_frame}f) "
+                                            f"— review, not counted"))
+                else:
+                    self.score[team] += 1
+                    self._emit(Event(EventType.SCORE, self.frame, to_track=p.track_id, team=team,
+                                     x=p.x, y=p.y, detail=f"score={dict(self.score)}"))
                 return
 
     def notify_pull(self, frame: int, x: float = 0.0, y: float = 0.0) -> Event:
@@ -280,6 +300,7 @@ class MatchEventEngine:
         self._hold_miss = 0
         self._ground_streak = 0
         self._score_lock = False
+        self._imputed_seen_frame = None  # pull 是可信外部信号，清除源守卫
         ev = Event(EventType.PULL, frame, x=x, y=y)
         self._emit(ev)
         return ev

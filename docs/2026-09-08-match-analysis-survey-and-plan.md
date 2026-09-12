@@ -830,3 +830,15 @@ GUI 会话（.worktrees/gui-v0）在 09-09 自治窗口完成 **7 轮带验收�
 **裁定**：通道**保持默认关**；possession 覆盖收益真实（+2/+2 事件、轨迹 2.3 倍）但自动记分伪造风险 1/4 分块实测在案。转正前置 = **源感知记分门**（events_runner 传递 disc 观测 source；持盘段含 imputed 帧时状态机 score 降级为 candidate 进复核队列，不进 eng.score）+ 复核队列 UI。分类器路线保留为可选验证器（对 imputed 段做外观二次确认）。
 
 **Stage 4 TrackNetV3**：决策门维持 parked（Stage 2 miss 根因是标定与 GT 结构，非远景召回）。
+
+### 13.15 转正前置落地：源感知记分门 + 标定自愈，终评 R 1.000 / P 0.800（09-12）
+
+**① 源感知记分门（堵死补全通道的记分伪造路径）**：`DiscObservation.source` 从 tracks.json 透传进事件引擎；引擎记录最近合成观测帧号，`PossessionConfig.imputed_score_guard_frames=90` 保护窗内的状态机得分**降级为 candidate（不进 eng.score，仍上锁到 pull）**，Event 增加 candidate 字段全链路输出；pull 视为可信外部信号清除守卫。4 单测。离线重验三方：chunk2 伪造分变为 `imputed-guard (10f) — review, not counted`（score 回归 0:0）✓；chunk1 possession 增益保留 ✓；G4 基线（无 imputed 帧）逐项无扰动 ✓。
+
+**② 标定自愈（`auto_calibrate_segment_recover`）**：整段 FAIL 时自动滑窗（窗长 min(1200, N/2)，步长窗长/2）找最佳过门子窗，creport 带 recovery_window；pipeline 默认走恢复版，日志标注 window。1 单测（SC5）。**chunk0 在线实证：整段 FAIL → 自动恢复 [3000,3600) 内点率 0.9079 PASS**（§13.13 手工扫窗的产物化）。
+
+**③ 终评（s2_aggregate 含恢复后的 chunk0）**：窗口 4 GT 得分**全命中 R=1.000**，5 个 novel 提案命中 4 个 **P=0.800**，8 followup 链住。新增匹配 = chunk0 t=30.8 右端区候选 ↔ GT@321（dt 9.8s）——引擎独立命中反过来**佐证了这条 ASR 单票 GT 的真实性**（引擎×ASR 两源互证）。唯一 FALSE = t=267.9 僵持误投影（attend=0% 软信号已标注），根治靠 pitch_kp 场线标定或攻守方向绑定。
+
+**诚实注记**：chunk0 恢复窗 [1800,3000) 与 t=30.8（帧 924）不同窗——跨窗应用标定有机位漂移风险，dt 9.8s 的匹配在 ±90s GT 精度口径内成立但非逐帧精度；攻守方向的队伍绑定仍是单例校准（G4），端区侧向跨 chunk 一致性未证明（players-extent 的 x 轴朝向各段独立）。
+
+**转正裁定更新**：端区规则维持 candidate+复核；持盘补全通道在源感知守卫下**具备转正条件**（伪造记分已结构性堵住），可在生产配置开启并随复核队列运行。

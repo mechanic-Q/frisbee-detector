@@ -207,7 +207,8 @@ def compute_events(doc: dict, calibration_path: Path,
         if dd is not None:
             wx, wy = px_to_world(H, dd["cx"], dd["cy"])
             if -margin <= wx <= fw + margin and -margin <= wy <= fh + margin:
-                disc = DiscObservation(x=wx, y=wy, conf=dd.get("conf", 1.0), frame=idx)
+                disc = DiscObservation(x=wx, y=wy, conf=dd.get("conf", 1.0), frame=idx,
+                                       source=dd.get("source"))
             else:
                 disc_rejected += 1
         for e in eng.update(idx, players, disc):
@@ -215,6 +216,7 @@ def compute_events(doc: dict, calibration_path: Path,
                 "type": e.type.value, "frame": e.frame, "t_sec": round(e.frame / fps, 2),
                 "from_track": e.from_track, "to_track": e.to_track, "team": e.team,
                 "x": round(e.x, 2), "y": round(e.y, 2), "detail": e.detail,
+                "candidate": e.candidate,
             })
 
     # F1 多维互证·几何维度: 端区慢速持盘走段 → 得分候选（复核队列）

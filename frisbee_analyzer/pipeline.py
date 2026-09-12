@@ -212,9 +212,9 @@ def run(args, stream=None) -> int:
     # 现场标定，消除"标定文件与素材时段错位"（§13.2/§13.9 三次实证）。在过滤前执行，
     # 标定 json 落输出目录；若 --calibration 同时给出，段内标定优先（时段匹配）并记录覆盖。
     if getattr(args, "auto_calibrate", False):
-        from .segment_calib import auto_calibrate_segment
+        from .segment_calib import auto_calibrate_segment_recover
 
-        calib_doc, creport = auto_calibrate_segment(frames, info["width"], info["height"])
+        calib_doc, creport = auto_calibrate_segment_recover(frames, info["width"], info["height"])
         out_dir_ac = Path(args.output_dir) if args.output_dir else Path("runs/gui_analysis") / Path(video).stem
         out_dir_ac.mkdir(parents=True, exist_ok=True)
         if calib_doc is not None:
@@ -223,7 +223,8 @@ def run(args, stream=None) -> int:
             matrix, polygon = np.asarray(calib_doc["matrix"], dtype=np.float64), FIELD_POLYGON_M
             protocol.emit(protocol.log(
                 f"auto-calibrate: PASS inlier={creport['optimized_inlier_ratio']} "
-                f"points={creport['points']} -> {calib_path.name}"
+                f"points={creport['points']} "
+                f"window={creport.get('recovery_window', 'full')} -> {calib_path.name}"
                 + (" (overrides --calibration)" if getattr(args, "calibration", None) else "")), stream)
         else:
             protocol.emit(protocol.log(

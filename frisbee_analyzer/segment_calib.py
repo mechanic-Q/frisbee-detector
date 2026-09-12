@@ -162,3 +162,48 @@ def auto_calibrate_segment(frames: dict, width: float, height: float,
         "inlier_ratio": round(score, 4),
     }
     return calib, report
+
+
+# ── 恢复扫窗（§13.15）：整段 FAIL 时自动找最佳过门子窗 ──
+RECOVER_WINDOW = 1200   # 扫窗窗长（帧）；实际取 min(此值, 总帧数//2)
+RECOVER_STEP_DIV = 2    # 步长 = 窗长/2
+
+
+def auto_calibrate_segment_recover(frames: dict, width: float, height: float,
+                                   min_points: int = 500,
+                                   gate: float = 0.85) -> tuple[dict | None, dict]:
+    """auto_calibrate_segment 的带恢复版：整段 FAIL 时滑窗找最佳过门子窗。
+
+    实证（§13.13/13.15 chunk0）：跨摇镜头长段整段内点率 0.826，但 [1800,3000)
+    子窗 0.881 过门——摇镜头/开段 lineup 只污染局部。返回结构与
+    auto_calibrate_segment 一致；恢复成功时 creport 带 recovery_window=[a,b)。
+    """
+    calib, report = auto_calibrate_segment(frames, width, height, min_points, gate)
+    if calib is not None:
+        return calib, report
+
+    n = max((int(k) for k in frames), default=-1) + 1
+    if n <= 0:
+        return None, report
+    win = min(RECOVER_WINDOW, max(n // 2, 1))
+    step = max(win // RECOVER_STEP_DIV, 1)
+    best = None
+    for a in range(0, n - win // 2 + 1, step):
+        b = min(a + win, n)
+        if b - a < win // 2:
+            continue
+        sub = {k: v for k, v in frames.items() if a <= int(k) < b}
+        c, r = auto_calibrate_segment(sub, width, height,
+                                      min_points=max(min_points // 2, 200), gate=gate)
+        inl = r.get("optimized_inlier_ratio", 0.0)
+        if c is not None and (best is None or inl > best[2]):
+            best = (a, b, inl, c)
+    if best is None:
+        report["reason"] = "whole-segment and all recovery windows failed"
+        return None, report
+    a, b, inl, calib = best
+    report = dict(report)
+    report.update(passed=True, recovery_window=[a, b],
+                  optimized_inlier_ratio=round(inl, 4))
+    report.pop("reason", None)
+    return calib, report
