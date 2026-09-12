@@ -52,29 +52,52 @@ def px_to_world(H: np.ndarray, x: float, y: float) -> tuple:
 def detect_endzone_carries(doc: dict, H: np.ndarray, fw: float, fh: float,
                            ez_depth: float, fps: float,
                            min_frames: int = 15, carry_speed_ms: float = 2.5,
-                           margin_m: float = 1.0) -> list[dict]:
+                           margin_m: float = 1.0,
+                           attended_radius_m: float = 2.5,
+                           attended_frac: float = 0.0) -> list[dict]:
     """端区慢速持盘走段检测 → 得分候选（进复核队列，不自动记分）。
 
     多维互证的几何维度（F1 G4 实验 §13.10）：持盘状态机要求"盘-手部点 <1.2m"，
     但得分后持盘走到底线的动作中盘在腰侧、手部点模型不匹配 → 状态机漏检。
     本规则只看几何：盘在端区(±margin)内以步行速度持续 ≥min_frames 帧 →
     score_candidate（candidate=true，供人工/上层复核确认）。
+
+    有人持有判别（§13.13 迭代2→3）：慢速端区段有三类伪影——落地躺盘、拉盘者
+    端区等待、得分后走回。原计划用"盘 2.5m 内有球员"过滤躺盘，实测不可行：
+    真得分段盘-最近球员世界距离实测 6.7-9.9m——单应性地平面视差（持盘离地
+    ~1m，随相机距离放大）+ players-extent 标定端区区误差叠加，世界坐标近距
+    判别噪声 ~7m，任何阈值都分不开持有/落地。故 attended 降级为**软信号**：
+    恒计算恒上报（attended_frac 进 detail 供复核队列参考），不参与过滤
+    （attended_frac=0 即关闭过滤，默认如此）。拉盘者等待/走回伪影由上层
+    90s 新颖性链标记 followup 兜住。
     """
     import math
 
     disc = doc.get("disc_frames", {})
     if not disc:
         return []
+
+    # 球员脚点世界坐标缓存（与 compute_events 同口径：bbox 底边中点）
+    players_world: dict[int, list[tuple[float, float]]] = {}
+    for fk, dets in doc.get("frames", {}).items():
+        ws = []
+        for det in dets:
+            x1, y1, x2, y2 = det["bbox"]
+            ws.append(px_to_world(H, (x1 + x2) / 2, y2))
+        players_world[int(fk)] = ws
+
     seq = []
     for fk in sorted(disc, key=int):
         d = disc[fk]
         if d.get("status") == "rejected":  # 速度物理拒绝的观测不可信
             continue
         wx, wy = px_to_world(H, d["cx"], d["cy"])
-        seq.append((int(fk), wx, wy))
+        near = any(math.hypot(wx - px, wy - py) <= attended_radius_m
+                   for px, py in players_world.get(int(fk), ()))
+        seq.append((int(fk), wx, wy, near))
     # 慢速连续段：帧号断裂 >2 或速度超限则断开
     segments, cur, prev = [], [], None
-    for fn, wx, wy in seq:
+    for fn, wx, wy, _near in seq:
         if prev is not None:
             gap = fn - prev[0]
             sp = math.hypot(wx - prev[1], wy - prev[2]) / max(gap / fps, 1e-6)
@@ -82,7 +105,7 @@ def detect_endzone_carries(doc: dict, H: np.ndarray, fw: float, fh: float,
                 if len(cur) >= min_frames:
                     segments.append(cur)
                 cur = []
-        cur.append((fn, wx, wy))
+        cur.append((fn, wx, wy, _near))
         prev = (fn, wx, wy)
     if len(cur) >= min_frames:
         segments.append(cur)
@@ -93,14 +116,18 @@ def detect_endzone_carries(doc: dict, H: np.ndarray, fw: float, fh: float,
         in_ez = [p for p in seg if p[1] < lo or p[1] > hi]
         if len(in_ez) < min_frames:
             continue
+        attended = sum(1 for p in in_ez if p[3]) / len(in_ez)
+        if attended < attended_frac:
+            continue  # 落地躺盘等无人贴身伪影
         side = "left" if in_ez[len(in_ez) // 2][1] < lo else "right"
         cands.append({
             "type": "score", "candidate": True,
             "frame": seg[0][0], "t_sec": round(seg[0][0] / fps, 2),
             "end_frame": seg[-1][0], "endzone": side,
             "carry_frames": len(in_ez),
+            "attended_frac": round(attended, 2),
             "detail": f"endzone carry: disc slow in {side} EZ x[{seg[0][1]:.0f}->{seg[-1][1]:.0f}] "
-                      f"≥{min_frames}f — review for score",
+                      f"≥{min_frames}f attended={attended:.0%} — review for score",
         })
     # 合并：同端区 30s 内的碎片候选（行走中的速度毛刺会切段）聚为一个得分候选
     merged = []
@@ -110,9 +137,10 @@ def detect_endzone_carries(doc: dict, H: np.ndarray, fw: float, fh: float,
             m = merged[-1]
             m["end_t_sec"] = c["t_sec"]
             m["carry_frames"] += c["carry_frames"]
+            m["attended_frac"] = round(min(m["attended_frac"], c["attended_frac"]), 2)
             m["segments"] = m.get("segments", 1) + 1
             m["detail"] = (f"endzone carry: {m['segments']} slow-carry segments in {m['endzone']} EZ, "
-                           f"total {m['carry_frames']}f — review for score")
+                           f"total {m['carry_frames']}f attended={m['attended_frac']:.0%} — review for score")
         else:
             c = dict(c)
             c["end_t_sec"] = c["t_sec"]
@@ -179,7 +207,8 @@ def compute_events(doc: dict, calibration_path: Path,
         if dd is not None:
             wx, wy = px_to_world(H, dd["cx"], dd["cy"])
             if -margin <= wx <= fw + margin and -margin <= wy <= fh + margin:
-                disc = DiscObservation(x=wx, y=wy, conf=dd.get("conf", 1.0), frame=idx)
+                disc = DiscObservation(x=wx, y=wy, conf=dd.get("conf", 1.0), frame=idx,
+                                       source=dd.get("source"))
             else:
                 disc_rejected += 1
         for e in eng.update(idx, players, disc):
@@ -187,6 +216,7 @@ def compute_events(doc: dict, calibration_path: Path,
                 "type": e.type.value, "frame": e.frame, "t_sec": round(e.frame / fps, 2),
                 "from_track": e.from_track, "to_track": e.to_track, "team": e.team,
                 "x": round(e.x, 2), "y": round(e.y, 2), "detail": e.detail,
+                "candidate": e.candidate,
             })
 
     # F1 多维互证·几何维度: 端区慢速持盘走段 → 得分候选（复核队列）

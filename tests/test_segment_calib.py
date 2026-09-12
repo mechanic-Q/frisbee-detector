@@ -96,3 +96,26 @@ def test_collect_foot_points_filters_small():
     pts = collect_foot_points(frames, 400.0)
     assert len(pts) == 1
     assert pts[0][1] == 30.0
+
+
+def test_sc5_recovery_finds_passing_window():
+    """整段被场外离群簇拖 FAIL，滑窗恢复找到干净子窗（§13.15）。"""
+    from frisbee_analyzer.segment_calib import auto_calibrate_segment_recover
+
+    frames, w, h, scale = _synth_frames(n_frames=40, seed=3)
+    # 前 120 帧"场外簇"：脚点远在画面下方，钳位比例的矩形盖不住两簇 → 整段 FAIL
+    rng = np.random.default_rng(7)
+    for f in range(120):
+        dets = []
+        for _ in range(20):
+            cx, foot_y = rng.uniform(900, 1000), rng.uniform(2000, 2100)
+            hgt = rng.uniform(25, 40)
+            dets.append({"bbox": [cx - 10, foot_y - hgt, cx + 10, foot_y],
+                         "conf": 0.7, "cls": "player"})
+        frames[str(f)] = dets
+    ordered = {f"{int(k) + 120}": v for k, v in frames.items()}  # 干净窗放后半段
+    calib, report = auto_calibrate_segment_recover(ordered, w, h)
+    assert calib is not None, f"恢复应找到过门子窗: {report}"
+    assert report.get("recovery_window") is not None
+    assert report["recovery_window"][0] >= 120  # 找到的是干净子窗
+    assert report["optimized_inlier_ratio"] >= 0.85

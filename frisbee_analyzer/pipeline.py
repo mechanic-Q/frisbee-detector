@@ -29,6 +29,30 @@ from .tracking import WorkerCancelled, iter_player_tracks, probe_video
 PROGRESS_EVERY = 30  # 每 N 帧上报一次进度（GUI 进度条足够平滑）
 
 
+def _fused_to_disc_doc(fused) -> dict[str, dict]:
+    """融合 DiscFrame 序列 → tracks.json 的 disc_frames 条目（仅 tracking/predicting 入档）。"""
+    out: dict[str, dict] = {}
+    for idx, f in enumerate(fused):
+        if f.status in ("tracking", "predicting") and f.bbox is not None:
+            entry = {
+                "bbox": [round(v, 1) for v in f.bbox],
+                "conf": round(f.conf, 4),
+                "cx": round(f.cx, 1),
+                "cy": round(f.cy, 1),
+                "status": f.status,
+            }
+            if f.d2 is not None:
+                entry["d2"] = f.d2
+            if f.speed_ms is not None:
+                entry["speed_ms"] = f.speed_ms
+            if f.world_xy is not None:
+                entry["world_xy"] = [round(f.world_xy[0], 2), round(f.world_xy[1], 2)]
+            if f.source:
+                entry["source"] = f.source
+            out[str(idx)] = entry
+    return out
+
+
 def run(args, stream=None) -> int:
     """执行一次分析。stream 参数便于测试注入。返回退出码。"""
     video = args.video
@@ -48,6 +72,8 @@ def run(args, stream=None) -> int:
     frames: dict[str, list] = {}
     disc_frames: dict[str, dict] = {}
     disc_seq: list[tuple[int, dict | None]] = []  # (frame_idx, d_det) 原始序列，供融合层用
+    fused_cur = None   # 当前最优融合结果（hand-roi/补全可能覆盖）
+    seq_cur = None     # 与 fused_cur 对应的逐帧检测序列
     if getattr(args, "disc_weights", None):
         # 双模型路径：球员 + 飞盘联合跟踪（事件统计的前提，见 docs/2026-09-09-engine-validation.md）
         from .tracking import iter_player_and_disc_tracks
@@ -87,6 +113,8 @@ def run(args, stream=None) -> int:
     protocol.emit(protocol.progress(total, total), stream)
     if disc_frames:
         protocol.emit(protocol.log(f"disc: {len(disc_frames)}/{len(frames)} frames with detection"), stream)
+    if not disc_seq and (getattr(args, "disc_fusion", False) or getattr(args, "hand_roi", False)):
+        protocol.emit(protocol.log("warning: --disc-fusion/--hand-roi need --disc-weights（未提供，跳过盘通道）"), stream)
 
     # F1 多维融合（默认关）：对盘检测序列做帧间关联+马氏门控+速度拒绝，重写 disc_frames。
     if getattr(args, "disc_fusion", False) and disc_seq:
@@ -112,29 +140,44 @@ def run(args, stream=None) -> int:
             seq, fps=info["fps"], world_projector=proj,
             width=info["width"], height=info["height"],
         )
-        new_disc: dict[str, dict] = {}
-        for (idx, _orig), f in zip(disc_seq, fused):
-            if f.status in ("tracking", "predicting") and f.bbox is not None:
-                entry = {
-                    "bbox": [round(v, 1) for v in f.bbox],
-                    "conf": round(f.conf, 4),
-                    "cx": round(f.cx, 1),
-                    "cy": round(f.cy, 1),
-                    "status": f.status,
-                }
-                if f.d2 is not None:
-                    entry["d2"] = f.d2
-                if f.speed_ms is not None:
-                    entry["speed_ms"] = f.speed_ms
-                if f.world_xy is not None:
-                    entry["world_xy"] = [round(f.world_xy[0], 2), round(f.world_xy[1], 2)]
-                new_disc[str(idx)] = entry
+        fused_cur, seq_cur = fused, seq
+        new_disc = _fused_to_disc_doc(fused)
         protocol.emit(protocol.log(
             f"disc-fusion: tracking={fstats.n_tracking} predicting={fstats.n_predicting} "
             f"gated={fstats.n_gated} rejected_speed={fstats.n_rejected_speed} "
             f"lost={fstats.n_lost} longest_track={fstats.longest_track_frames}f "
             f"({len(disc_frames)} -> {len(new_disc)} frames)"), stream)
         disc_frames = new_disc
+
+        # F1 第二检测通道（--hand-roi，默认关）：持盘贴身遮挡的盘整帧看不见（§13.11 G4
+        # 遗留根因）。对融合态非 tracking 帧，取最近持盘人的手部区 crop 放大复检，
+        # 检出并入序列后二次融合。健康 tracking 帧不动。
+        if getattr(args, "hand_roi", False) and fused:
+            from .hand_roi import merge_hand_roi_detections, recheck_video
+
+            players_by_frame = {int(k): v for k, v in frames.items()}
+            extra, hr_stats = recheck_video(
+                video, fused, players_by_frame, disc_weights=args.disc_weights,
+                k=args.hand_roi_k, conf=args.hand_roi_conf, imgsz=args.hand_roi_imgsz,
+                max_gap=args.hand_roi_max_gap,
+                width=info["width"], height=info["height"],
+                log=lambda m: protocol.emit(protocol.log(m), stream))
+            seq2, mstats = merge_hand_roi_detections(seq, extra)
+            fused2, fstats2 = fuse_disc_detections(
+                seq2, fps=info["fps"], world_projector=proj,
+                width=info["width"], height=info["height"],
+            )
+            fused_cur, seq_cur = fused2, seq2
+            new_disc2 = _fused_to_disc_doc(fused2)
+            n_roi_src = sum(1 for v in new_disc2.values() if v.get("source") == "hand_roi")
+            protocol.emit(protocol.log(
+                f"hand-roi: frames_with_anchor={hr_stats.frames_with_anchor} "
+                f"rechecked={hr_stats.frames_rechecked} rois={hr_stats.rois_checked} "
+                f"dets={mstats.dets_added} (deduped {mstats.dets_deduped}) -> "
+                f"tracking {fstats.n_tracking}->{fstats2.n_tracking}, "
+                f"longest {fstats.longest_track_frames}->{fstats2.longest_track_frames}f, "
+                f"disc_frames {len(new_disc)}->{len(new_disc2)} (roi-source {n_roi_src})"), stream)
+            disc_frames = new_disc2
 
     if args.team_from_cls:
         from .team import apply_team_from_cls
@@ -169,9 +212,9 @@ def run(args, stream=None) -> int:
     # 现场标定，消除"标定文件与素材时段错位"（§13.2/§13.9 三次实证）。在过滤前执行，
     # 标定 json 落输出目录；若 --calibration 同时给出，段内标定优先（时段匹配）并记录覆盖。
     if getattr(args, "auto_calibrate", False):
-        from .segment_calib import auto_calibrate_segment
+        from .segment_calib import auto_calibrate_segment_recover
 
-        calib_doc, creport = auto_calibrate_segment(frames, info["width"], info["height"])
+        calib_doc, creport = auto_calibrate_segment_recover(frames, info["width"], info["height"])
         out_dir_ac = Path(args.output_dir) if args.output_dir else Path("runs/gui_analysis") / Path(video).stem
         out_dir_ac.mkdir(parents=True, exist_ok=True)
         if calib_doc is not None:
@@ -180,7 +223,8 @@ def run(args, stream=None) -> int:
             matrix, polygon = np.asarray(calib_doc["matrix"], dtype=np.float64), FIELD_POLYGON_M
             protocol.emit(protocol.log(
                 f"auto-calibrate: PASS inlier={creport['optimized_inlier_ratio']} "
-                f"points={creport['points']} -> {calib_path.name}"
+                f"points={creport['points']} "
+                f"window={creport.get('recovery_window', 'full')} -> {calib_path.name}"
                 + (" (overrides --calibration)" if getattr(args, "calibration", None) else "")), stream)
         else:
             protocol.emit(protocol.log(
@@ -199,6 +243,40 @@ def run(args, stream=None) -> int:
         total_after = sum(len(d) for d in frames.values())
         route = "polygon(calibrated)" if matrix is not None else f"heuristic(min_y_frac={args.min_y_frac})"
         protocol.emit(protocol.log(f"field filter({route}): {total_before} -> {total_after} dets"), stream)
+
+    # F1 第三通道（--possession-impute，默认关）：持盘补全。融合 degraded 段若像素
+    # 锚点稳定落在唯一球员框内（同 track_id、步行以下速度），合成该球员手部点的
+    # 盘观测二次融合——状态机因此能持续看见被身体遮挡的持盘（§13.14）。需要标定
+    # （auto-calibrate 产物或 --calibration）做视差校正，无标定则跳过。
+    if getattr(args, "possession_impute", False) and fused_cur is not None:
+        if matrix is None:
+            protocol.emit(protocol.log(
+                "possession-impute: 需要标定（--auto-calibrate PASS 或 --calibration），跳过"), stream)
+        else:
+            from .possession_impute import impute_possession
+            from .hand_roi import merge_hand_roi_detections
+            from utils.homography import world_to_pixel, pixel_to_world as _p2w
+
+            players_by_frame = {int(k): v for k, v in frames.items()}
+            extra, imp_stats = impute_possession(
+                fused_cur, players_by_frame,
+                world_to_pixel=lambda wx, wy: world_to_pixel(matrix, wx, wy),
+                pixel_to_world=lambda px, py: _p2w(matrix, px, py),
+                max_gap=args.impute_max_gap, max_streak=args.impute_max_streak,
+            )
+            seq3, _ = merge_hand_roi_detections(seq_cur, extra)
+            fused3, fstats3 = fuse_disc_detections(
+                seq3, fps=info["fps"], world_projector=proj,
+                width=info["width"], height=info["height"],
+            )
+            before = len(disc_frames)
+            disc_frames = _fused_to_disc_doc(fused3)
+            n_imp = sum(1 for v in disc_frames.values() if v.get("source") == "possession_imputed")
+            protocol.emit(protocol.log(
+                f"possession-impute: anchors={imp_stats.anchor_frames} streaks={imp_stats.streaks} "
+                f"imputed={imp_stats.frames_imputed}f -> tracking "
+                f"{fstats3.n_tracking}, longest {fstats3.longest_track_frames}f, "
+                f"disc_frames {before}->{len(disc_frames)} (imputed-source {n_imp})"), stream)
 
     out_dir = Path(args.output_dir) if args.output_dir else Path("runs/gui_analysis") / Path(video).stem
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -281,6 +359,23 @@ def main(argv=None) -> int:
     parser.add_argument("--disc-conf", type=float, default=0.35, help="飞盘检测置信度阈值")
     parser.add_argument("--disc-fusion", action="store_true",
                         help="F1 多维融合：盘检测帧间关联+马氏门控+速度拒绝（默认关）")
+    parser.add_argument("--hand-roi", action="store_true",
+                        help="F1 手部 ROI 复检：持盘贴身遮挡的盘二次检测（隐含 --disc-fusion，默认关）")
+    parser.add_argument("--hand-roi-conf", type=float, default=None,
+                        help="ROI 复检测出阈值（默认 0.30）")
+    parser.add_argument("--hand-roi-imgsz", type=int, default=None,
+                        help="ROI crop 送检分辨率（默认 640）")
+    parser.add_argument("--hand-roi-max-gap", type=int, default=None,
+                        help="距最后观测 ≤ 此帧数才复检（默认 120）")
+    parser.add_argument("--hand-roi-k", type=int, default=None,
+                        help="每帧最多复检的最近球员数（默认 2）")
+    parser.add_argument("--possession-impute", action="store_true",
+                        help="F1 持盘补全：融合 degraded 段锚点落在唯一球员框内时合成手部点盘观测"
+                             "（需标定，默认关）")
+    parser.add_argument("--impute-max-gap", type=int, default=None,
+                        help="距最后观测 ≤ 此帧数才补全（默认 150）")
+    parser.add_argument("--impute-max-streak", type=int, default=None,
+                        help="单段最多连续补全帧数（默认 90）")
     parser.add_argument("--auto-calibrate", action="store_true",
                         help="F1 段内自动标定：用本次 run 的球员脚点云现场标定（默认关；"
                              "给出时优先于 --calibration，过 0.85 内点率门才生效）")
@@ -294,6 +389,21 @@ def main(argv=None) -> int:
 
     if not args.team_only and not args.video:
         parser.error("--video is required unless --team-only is used")
+
+    if args.hand_roi:
+        args.disc_fusion = True  # 手部 ROI 定义在融合态之上，隐含开启
+    if any(getattr(args, a) is None for a in
+           ("hand_roi_conf", "hand_roi_imgsz", "hand_roi_max_gap", "hand_roi_k",
+            "impute_max_gap", "impute_max_streak")):
+        from . import hand_roi as _hr
+        from . import possession_impute as _pi
+
+        args.hand_roi_conf = args.hand_roi_conf if args.hand_roi_conf is not None else _hr.HAND_ROI_CONF
+        args.hand_roi_imgsz = args.hand_roi_imgsz if args.hand_roi_imgsz is not None else _hr.HAND_ROI_IMGSZ
+        args.hand_roi_max_gap = args.hand_roi_max_gap if args.hand_roi_max_gap is not None else _hr.HAND_ROI_MAX_GAP
+        args.hand_roi_k = args.hand_roi_k if args.hand_roi_k is not None else _hr.HAND_ROI_K
+        args.impute_max_gap = args.impute_max_gap if args.impute_max_gap is not None else _pi.IMPUTE_MAX_GAP
+        args.impute_max_streak = args.impute_max_streak if args.impute_max_streak is not None else _pi.IMPUTE_STREAK
 
     try:
         if args.team_only:

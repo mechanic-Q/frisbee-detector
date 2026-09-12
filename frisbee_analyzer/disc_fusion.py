@@ -46,6 +46,7 @@ class DiscFrame:
     d2: float | None = None     # 马氏距离²（tracking 时对所选候选）
     speed_ms: float | None = None
     world_xy: tuple[float, float] | None = None
+    source: str | None = None   # 检出来源（None=整帧主通道，"hand_roi"=手部 ROI 复检）
 
 
 @dataclass
@@ -259,7 +260,8 @@ def fuse_disc_detections(
         frames_out.append(DiscFrame(bbox, conf, cx, cy, "tracking",
                                     d2=round(d2, 1) if d2 is not None else None,
                                     speed_ms=round(speed, 1) if speed is not None else None,
-                                    world_xy=(wx, wy) if wx is not None else None))
+                                    world_xy=(wx, wy) if wx is not None else None,
+                                    source=dets[best].get("source")))
         stats.n_tracking += 1
         stats.longest_track_frames = max(stats.longest_track_frames, track_len)
 
